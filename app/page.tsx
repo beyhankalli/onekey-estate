@@ -1,16 +1,28 @@
-import Hero from "@/components/Hero";
-import FeaturedProperties from "@/components/FeaturedProperties"; // Yeni bileşenimizi içe aktarıyoruz
+import { 
+  Hero, 
+  FeaturedProperties, 
+  WhyOneKey, 
+  HowItWorks, 
+  AboutPreview, 
+  ReviewsPreview, 
+  FinalCTA 
+} from "@/components/HomeSections";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="flex flex-col min-h-screen">
-      
-      {/* 1. Karşılama Alanı */}
+    <main className="flex min-h-screen flex-col">
       <Hero />
-      
-      {/* 2. Öne Çıkan İlanlar Alanı */}
       <FeaturedProperties />
+      <WhyOneKey />
+      <HowItWorks />
+      <AboutPreview />
+      <ReviewsPreview />
+      <FinalCTA />
       
-    </div>
+      {/* 
+        DİKKAT: <Footer /> bileşenini buradan kaldırdık. 
+        Çünkü sitemizin ana iskeleti olan layout.tsx dosyasında zaten bir Footer var.
+      */}
+    </main>
   );
 }

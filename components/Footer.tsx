@@ -1,54 +1,84 @@
 import Link from "next/link";
-import { MapPin, Phone, Mail } from "lucide-react";
+import { Mail, Phone, MapPin } from "lucide-react";
 
 export default function Footer() {
   return (
-    <footer className="bg-[#1c3053] text-white pt-16 pb-8 mt-auto">
+    <footer className="bg-white border-t border-gray-100 pt-20 pb-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+        
+        {/* 
+          YENİ IZGARA (GRID) YAPISI: 
+          Eşit 4 sütun yerine, 12 sütunluk (grid-cols-12) bir sistem kurduk. 
+          Böylece her bölüme ihtiyacı kadar genişlik verebiliyoruz.
+        */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-12 mb-16">
           
-          <div>
-            <h3 className="text-2xl font-bold tracking-tighter mb-4">OneKey<span className="text-[#ae884e]">.</span></h3>
-            <p className="text-blue-100 font-light leading-relaxed max-w-sm">
-              Premium estate agency offering the finest properties in the UK. 
-              Experience seamless online booking and immersive 3D tours.
+          {/* 1. Logo Bölümü (3 birim genişlik - lg:col-span-3) */}
+          <div className="lg:col-span-3 space-y-6">
+            <Link href="/" className="inline-block">
+              <img 
+                src="/onekey-logo.png" 
+                alt="OneKey Estate Agency Logo" 
+                className="h-[84px] w-auto" 
+              />
+            </Link>
+            <p className="text-gray-500 font-light leading-relaxed mt-4 pr-4">
+              Premium estate agency combining modern technology with dedicated personal service across the UK.
             </p>
           </div>
-          
-          <div>
-            <h4 className="text-lg font-semibold mb-4 text-[#ae884e]">Quick Links</h4>
-            <ul className="space-y-3 font-light text-blue-100">
-              <li><Link href="/" className="hover:text-white transition-colors">Home</Link></li>
-              <li><Link href="/listings" className="hover:text-white transition-colors">Properties</Link></li>
-              <li><Link href="/about" className="hover:text-white transition-colors">About Us</Link></li>
-              <li><Link href="/contact" className="hover:text-white transition-colors">Contact</Link></li>
+
+          {/* 2. Menü Bölümü (2 birim genişlik - Daha az yer kaplar, böylece sağındaki Contact sola kayar) */}
+          <div className="lg:col-span-2">
+            <h4 className="font-semibold text-gray-900 mb-6">Navigation</h4>
+            <ul className="space-y-4 font-light text-gray-600">
+              <li><Link href="/" className="hover:text-[#ae884e] transition-colors">Home</Link></li>
+              <li><Link href="/listings" className="hover:text-[#ae884e] transition-colors">Properties</Link></li>
+              <li><Link href="/about" className="hover:text-[#ae884e] transition-colors">About Us</Link></li>
+              <li><Link href="/reviews" className="hover:text-[#ae884e] transition-colors">Reviews</Link></li>
+              <li><Link href="/contact" className="hover:text-[#ae884e] transition-colors">Contact Us</Link></li>
             </ul>
           </div>
 
-          <div>
-            <h4 className="text-lg font-semibold mb-4 text-[#ae884e]">Contact Us</h4>
-            <ul className="space-y-4 font-light text-blue-100">
+          {/* 3. İletişim Bölümü (4 birim genişlik - Adresin rahat sığması için en geniş alan) */}
+          <div className="lg:col-span-4">
+            <h4 className="font-semibold text-gray-900 mb-6">Contact</h4>
+            <ul className="space-y-4 font-light text-gray-600">
               <li className="flex items-start">
-                <MapPin className="w-5 h-5 mr-3 shrink-0 text-[#ae884e]" />
-                <span>Netherend Neighbourhood Centre<br />13 Mogul Lane, Halesowen<br />United Kingdom, B63 2QQ</span>
+                <MapPin className="w-5 h-5 mr-3 text-[#ae884e] shrink-0 mt-1" /> 
+                <span className="leading-relaxed">
+                  Netherend Neighbourhood Centre,<br/>
+                  13 Mogul Lane, Halesowen,<br/>
+                  United Kingdom, B63 2QQ
+                </span>
               </li>
-              <li className="flex items-center">
-                <Phone className="w-5 h-5 mr-3 shrink-0 text-[#ae884e]" />
-                <span>+44 20 7946 0958</span>
-              </li>
-              <li className="flex items-center">
-                <Mail className="w-5 h-5 mr-3 shrink-0 text-[#ae884e]" />
-                <span>hello@onekeyestateagency.com</span>
-              </li>
+              <li className="flex items-center"><Phone className="w-5 h-5 mr-3 text-[#ae884e] shrink-0" /> +44 20 7946 0000</li>
+              <li className="flex items-center"><Mail className="w-5 h-5 mr-3 text-[#ae884e] shrink-0" /> contact@onekeyestate.co.uk</li>
             </ul>
           </div>
+
+          {/* 4. Sosyal Medya Bölümü (3 birim genişlik) */}
+          <div className="lg:col-span-3">
+            <h4 className="font-semibold text-gray-900 mb-6">Follow Us</h4>
+            <div className="flex flex-wrap gap-3">
+              <a href="#" className="px-4 py-2 bg-gray-50 rounded-xl text-sm font-medium text-gray-600 hover:bg-[#ae884e] hover:text-white transition-all">
+                Instagram
+              </a>
+              <a href="#" className="px-4 py-2 bg-gray-50 rounded-xl text-sm font-medium text-gray-600 hover:bg-[#ae884e] hover:text-white transition-all">
+                Facebook
+              </a>
+              <a href="#" className="px-4 py-2 bg-gray-50 rounded-xl text-sm font-medium text-gray-600 hover:bg-[#ae884e] hover:text-white transition-all">
+                LinkedIn
+              </a>
+            </div>
+          </div>
         </div>
-        
-        <div className="border-t border-blue-900/50 pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-blue-200 font-light">
-          <p>&copy; {new Date().getFullYear()} OneKey Estate Agency. All rights reserved.</p>
-          <div className="flex space-x-6 mt-4 md:mt-0">
-            <Link href="#" className="hover:text-white transition-colors">Privacy Policy</Link>
-            <Link href="#" className="hover:text-white transition-colors">Terms of Service</Link>
+
+        {/* En Alt Telif Hakkı (Copyright) Çizgisi */}
+        <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-sm font-light text-gray-400">
+          <p>© 2026 OneKey Estate Agency. All rights reserved.</p>
+          <div className="flex gap-6">
+            <a href="#" className="hover:text-gray-900">Privacy Policy</a>
+            <a href="#" className="hover:text-gray-900">Terms of Service</a>
           </div>
         </div>
       </div>
