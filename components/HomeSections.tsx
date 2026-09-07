@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
+// 1. Gerekli React ve Next.js kütüphanelerini ekliyoruz
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Search, MapPin, Bed, Bath, ChevronRight, CheckCircle, Calendar, Home, Star } from "lucide-react";
-import { propertiesData } from "@/data/properties";
+// İkonlarımızı ekliyoruz (ImageIcon eklendi)
+import { Search, MapPin, Bed, Bath, ChevronRight, CheckCircle, Calendar, Home, Star, ImageIcon } from "lucide-react";
+// 2. Supabase bağlantımızı içeri aktarıyoruz (Sahte veri silindi)
+import { createClient } from "@/lib/supabase/client";
 
+// ==========================================
 // 1. HERO (ÜST ARAMA ALANI)
+// ==========================================
 export function Hero() {
   const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();
@@ -46,9 +51,46 @@ export function Hero() {
   );
 }
 
-// 2. ÖNE ÇIKAN İLANLAR
+// ==========================================
+// 2. ÖNE ÇIKAN İLANLAR (GERÇEK VERİ İLE GÜNCELLENDİ)
+// ==========================================
 export function FeaturedProperties() {
-  const featured = propertiesData.filter(p => p.isFeatured);
+  // Gerçek verileri tutacağımız state'ler
+  const [featured, setFeatured] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+
+  // Sayfa yüklendiğinde Supabase'den öne çıkan ilanları çeker
+  useEffect(() => {
+    async function fetchFeaturedProperties() {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("*, property_images(url, image_type)") // İlanları ve resimlerini beraber çek
+        .eq("is_featured", true) // Sadece öne çıkanlar (Admin panelindeki checkbox)
+        .order("created_at", { ascending: false }) // En yeniler önce
+        .limit(6); // Ana sayfada çok kalabalık olmaması için en fazla 6 tane göster
+
+      if (data) {
+        setFeatured(data);
+      }
+      if (error) {
+        console.error("Error fetching featured properties:", error);
+      }
+      setLoading(false);
+    }
+
+    fetchFeaturedProperties();
+  }, [supabase]);
+
+  // Kapak fotoğrafını bulmak için yardımcı fonksiyon
+  const getMainImage = (prop: any) => {
+    if (prop.property_images && prop.property_images.length > 0) {
+      // Önce iç mekan (interior) fotoğrafı arar, bulamazsa ilk fotoğrafı gösterir
+      const interior = prop.property_images.find((img: any) => img.image_type === 'interior');
+      return interior ? interior.url : prop.property_images[0].url;
+    }
+    return null;
+  };
 
   return (
     <section className="py-24 bg-white">
@@ -63,37 +105,68 @@ export function FeaturedProperties() {
           </Link>
         </div>
 
-        {/* Mobilde yatay kaydırma, Masaüstünde Grid */}
-        <div className="flex overflow-x-auto snap-x snap-mandatory gap-8 pb-8 hide-scrollbar md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible">
-          {featured.map((prop, index) => (
-            <motion.div key={prop.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: index * 0.1 }} className="min-w-[85vw] md:min-w-0 snap-center">
-              <Link href={`/listings/${prop.id}`} className="group block bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-300 flex flex-col h-full cursor-pointer">
-                <div className="w-full h-64 overflow-hidden relative">
-                  <img src={prop.interiorImages[0]} alt={prop.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className={`absolute top-4 right-4 text-xs font-semibold px-3 py-1.5 rounded-full ${prop.availabilityStatus === 'Available' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>{prop.availabilityStatus}</div>
-                </div>
-                <div className="p-8 flex flex-col flex-grow">
-                  <h3 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2 line-clamp-1">{prop.title}</h3>
-                  <div className="flex items-center text-gray-600 mb-5"><MapPin className="w-4 h-4 mr-1.5 text-[#ae884e]" /><span className="text-sm font-medium">{prop.shortLocation}</span></div>
-                  <div className="text-2xl font-medium text-[#1c3053] mb-6">£{prop.monthlyRent.toLocaleString()} <span className="text-sm text-gray-400 font-light">pcm</span></div>
-                  <div className="flex gap-6 mb-8 border-t border-gray-100 pt-6">
-                    <div className="flex items-center text-gray-600"><Bed className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" /><span className="font-light">{prop.bedrooms} Beds</span></div>
-                    <div className="flex items-center text-gray-600"><Bath className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" /><span className="font-light">{prop.bathrooms} Baths</span></div>
-                  </div>
-                  <div className="mt-auto flex items-center justify-center w-full bg-[#1c3053]/5 text-[#1c3053] py-4 rounded-2xl font-medium text-[15px] group-hover:bg-[#ae884e] group-hover:text-white transition-all duration-300">
-                    View Property <ChevronRight className="w-4 h-4 ml-1" />
-                  </div>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
+        {/* Veriler yüklenirken gösterilecek mesaj */}
+        {loading ? (
+          <div className="text-center py-10 text-gray-500">Loading featured properties...</div>
+        ) : featured.length === 0 ? (
+          <div className="text-center py-10 text-gray-500 border border-gray-100 rounded-2xl bg-gray-50">
+            No featured properties available at the moment.
+          </div>
+        ) : (
+          /* Mobilde yatay kaydırma, Masaüstünde Grid */
+          <div className="flex overflow-x-auto snap-x snap-mandatory gap-8 pb-8 hide-scrollbar md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible">
+            {featured.map((prop, index) => {
+              const mainImageUrl = getMainImage(prop);
+              
+              return (
+                <motion.div key={prop.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: index * 0.1 }} className="min-w-[85vw] md:min-w-0 snap-center">
+                  <Link href={`/listings/${prop.id}`} className="group block bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-300 flex flex-col h-full cursor-pointer">
+                    
+                    <div className="w-full h-64 overflow-hidden relative bg-gray-100 flex items-center justify-center">
+                      {mainImageUrl ? (
+                        mainImageUrl.match(/\.(mp4|webm|mov)$/i) ? (
+                          <video src={mainImageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        ) : (
+                          <img src={mainImageUrl} alt={prop.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        )
+                      ) : (
+                        <div className="text-gray-400 flex flex-col items-center">
+                          <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
+                          <span className="text-sm">No Image</span>
+                        </div>
+                      )}
+                      <div className={`absolute top-4 right-4 text-xs font-semibold px-3 py-1.5 rounded-full ${prop.availability_status === 'Available' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
+                        {prop.availability_status}
+                      </div>
+                    </div>
+
+                    <div className="p-8 flex flex-col flex-grow">
+                      <h3 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2 line-clamp-1">{prop.title}</h3>
+                      <div className="flex items-center text-gray-600 mb-5"><MapPin className="w-4 h-4 mr-1.5 text-[#ae884e]" /><span className="text-sm font-medium">{prop.short_location}</span></div>
+                      <div className="text-2xl font-medium text-[#1c3053] mb-6">£{prop.monthly_rent?.toLocaleString()} <span className="text-sm text-gray-400 font-light">pcm</span></div>
+                      <div className="flex gap-6 mb-8 border-t border-gray-100 pt-6">
+                        <div className="flex items-center text-gray-600"><Bed className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" /><span className="font-light">{prop.bedrooms} Beds</span></div>
+                        <div className="flex items-center text-gray-600"><Bath className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" /><span className="font-light">{prop.bathrooms} Baths</span></div>
+                      </div>
+                      <div className="mt-auto flex items-center justify-center w-full bg-[#1c3053]/5 text-[#1c3053] py-4 rounded-2xl font-medium text-[15px] group-hover:bg-[#ae884e] group-hover:text-white transition-all duration-300">
+                        View Property <ChevronRight className="w-4 h-4 ml-1" />
+                      </div>
+                    </div>
+
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );
 }
 
+// ==========================================
 // 3. NEDEN BİZ?
+// ==========================================
 export function WhyOneKey() {
   const benefits = [
     { num: "01", title: "Curated Properties", desc: "Carefully selected homes from trusted landlords ensuring high standards." },
@@ -123,7 +196,9 @@ export function WhyOneKey() {
   );
 }
 
+// ==========================================
 // 4. NASIL ÇALIŞIR?
+// ==========================================
 export function HowItWorks() {
   const steps = [
     { icon: Search, title: "Find Your Property", desc: "Search our portfolio of available premium rental properties." },
@@ -151,7 +226,9 @@ export function HowItWorks() {
   );
 }
 
+// ==========================================
 // 5. HAKKIMIZDA KISA BİLGİ
+// ==========================================
 export function AboutPreview() {
   return (
     <section className="py-24 bg-white">
@@ -168,7 +245,9 @@ export function AboutPreview() {
   );
 }
 
+// ==========================================
 // 6. MÜŞTERİ YORUMLARI
+// ==========================================
 export function ReviewsPreview() {
   const reviews = [
     { name: "Emily R.", loc: "Rented in Canary Wharf", text: "Incredibly smooth process from viewing to moving in. The agent was always available on WhatsApp." },
@@ -202,7 +281,9 @@ export function ReviewsPreview() {
   );
 }
 
+// ==========================================
 // 7. ALT AKSİYON (CTA)
+// ==========================================
 export function FinalCTA() {
   return (
     <section className="py-24 bg-[#1c3053] text-center px-4">
@@ -214,7 +295,6 @@ export function FinalCTA() {
             View Properties
           </Link>
           
-          {/* GÜNCELLENEN BUTON: Açık mavi yerine saydam beyaz çerçeve ve şık hover efekti eklendi */}
           <Link href="/contact" className="bg-transparent border-2 border-white/30 text-white px-8 py-4 rounded-2xl font-medium hover:bg-white hover:text-[#1c3053] transition-all">
             Contact Us
           </Link>

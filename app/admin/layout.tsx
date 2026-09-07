@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Home, Users, Star, CalendarOff, LogOut } from "lucide-react";
+import { LayoutDashboard, Home, Users, Star, CalendarOff, LogOut, CalendarCheck, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -10,7 +10,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const supabase = createClient();
 
-  // Eğer giriş sayfasındaysak yan menüyü gizle
   if (pathname === "/admin/login") {
     return <>{children}</>;
   }
@@ -25,8 +24,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
     { name: "Properties", icon: Home, href: "/admin/properties" },
     { name: "Agents", icon: Users, href: "/admin/agents" },
-    { name: "Reviews", icon: Star, href: "/admin/reviews" },
+    { name: "Bookings", icon: CalendarCheck, href: "/admin/bookings" }, 
     { name: "Blocked Dates", icon: CalendarOff, href: "/admin/blocked-dates" },
+    // YENİ EKLENEN MESAJLAR SEKMESİ
+    { name: "Messages", icon: MessageSquare, href: "/admin/messages" },
+    { name: "Reviews", icon: Star, href: "/admin/reviews" },
   ];
 
   return (

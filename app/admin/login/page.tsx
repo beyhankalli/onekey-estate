@@ -44,14 +44,14 @@ export default function AdminLogin() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
             <div className="relative">
               <Mail className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full pl-10 p-3 rounded-xl border border-gray-200 focus:border-[#ae884e] outline-none" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full pl-10 p-3 rounded-xl border border-gray-200 focus:border-[#ae884e] outline-none text-gray-900 font-medium" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <div className="relative">
               <Lock className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full pl-10 p-3 rounded-xl border border-gray-200 focus:border-[#ae884e] outline-none" />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full pl-10 p-3 rounded-xl border border-gray-200 focus:border-[#ae884e] outline-none text-gray-900 font-medium" />
             </div>
           </div>
           <button type="submit" disabled={loading} className="w-full bg-[#ae884e] text-white py-3 rounded-xl font-medium hover:bg-[#8f6e3c] transition-all">
