@@ -81,7 +81,6 @@ export default function PropertyDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-
   const supabase = createClient();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const isSaved = isInWishlist(id);
@@ -214,14 +213,10 @@ export default function PropertyDetailsPage() {
 
       const { data: blocks } = await supabase
         .from("blocked_dates")
-        .select(
-          "start_date, end_date, start_time, end_time, agent_id"
-        )
+        .select("start_date, end_date, start_time, end_time, agent_id")
         .lte("start_date", selectedDate)
         .gte("end_date", selectedDate)
-        .or(
-          `agent_id.is.null,agent_id.eq.${property.agents.id}`
-        );
+        .or(`agent_id.is.null,agent_id.eq.${property.agents.id}`);
 
       if (cancelled) return;
 
@@ -267,16 +262,15 @@ export default function PropertyDetailsPage() {
       if (cancelled) return;
 
       if (bookedSlotsError) {
-        console.error(
-          "Availability check failed:",
-          bookedSlotsError
-        );
+        console.error("Availability check failed:", bookedSlotsError);
 
         setAvailableSlots([]);
         setSelectedTime("");
+
         setBookingError(
           "We couldn't check availability right now. Please try again."
         );
+
         setAvailabilityLoading(false);
         return;
       }
@@ -314,9 +308,7 @@ export default function PropertyDetailsPage() {
     };
   }, [selectedDate, property, supabase, selectedTime]);
 
-  const handleBookingSubmit = async (
-    e: React.FormEvent
-  ) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (
@@ -351,31 +343,44 @@ export default function PropertyDetailsPage() {
     try {
       const hour = parseInt(selectedTime.split(":")[0], 10);
       const endTime = `${String(hour + 1).padStart(2, "0")}:00:00`;
+      const startTime = `${selectedTime}:00`;
 
-      const { error } = await supabase.from("bookings").insert([
+      /*
+       * Booking creation is handled by a SECURITY DEFINER RPC.
+       * This prevents public users from inserting directly into
+       * the bookings table and keeps the validation server-side.
+       */
+      const { data: bookingId, error } = await supabase.rpc(
+        "create_pending_booking",
         {
-          property_id: property.id,
-          agent_id: property.agents.id,
-          viewing_date: selectedDate,
-          start_time: `${selectedTime}:00`,
-          end_time: endTime,
-          customer_name: userName.trim(),
-          customer_phone: userPhone.trim(),
-          status: "pending",
-        },
-      ]);
+          p_property_id: property.id,
+          p_agent_id: property.agents.id,
+          p_viewing_date: selectedDate,
+          p_start_time: startTime,
+          p_end_time: endTime,
+          p_customer_name: userName.trim(),
+          p_customer_phone: userPhone.trim(),
+        }
+      );
 
       if (error) {
+        console.error("Booking error:", error);
+
         if (error.code === "23505") {
           throw new Error(
             "This time slot was just booked by someone else. Please select another time."
           );
         }
 
-        console.error("Booking error:", error);
-
         throw new Error(
-          "We couldn't complete your booking. Please try again."
+          error.message ||
+            "We couldn't complete your booking. Please try again."
+        );
+      }
+
+      if (!bookingId) {
+        throw new Error(
+          "We couldn't confirm your booking. Please try again."
         );
       }
 
@@ -391,16 +396,10 @@ export default function PropertyDetailsPage() {
     }
   };
 
-  const handleMessageSubmit = async (
-    e: React.FormEvent
-  ) => {
+  const handleMessageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (
-      !msgName.trim() ||
-      !msgEmail.trim() ||
-      !msgText.trim()
-    ) {
+    if (!msgName.trim() || !msgEmail.trim() || !msgText.trim()) {
       setMsgError("Please fill in all required fields.");
       return;
     }
@@ -411,9 +410,7 @@ export default function PropertyDetailsPage() {
 
     try {
       if (!property?.id) {
-        throw new Error(
-          "Property information is unavailable."
-        );
+        throw new Error("Property information is unavailable.");
       }
 
       const { error } = await supabase.from("messages").insert([
@@ -428,6 +425,7 @@ export default function PropertyDetailsPage() {
 
       if (error) {
         console.error("Message error:", error);
+
         throw new Error(
           "Failed to send your message. Please try again."
         );
@@ -463,12 +461,8 @@ export default function PropertyDetailsPage() {
       }
     } else {
       try {
-        await navigator.clipboard.writeText(
-          window.location.href
-        );
-
+        await navigator.clipboard.writeText(window.location.href);
         setCopied(true);
-
         setTimeout(() => setCopied(false), 2000);
       } catch {
         setCopied(false);
@@ -481,8 +475,7 @@ export default function PropertyDetailsPage() {
       ? interiorImages
       : activeTab === "exterior"
         ? exteriorImages
-        : activeTab === "floorplan" &&
-            property?.floor_plan_2d
+        : activeTab === "floorplan" && property?.floor_plan_2d
           ? [property.floor_plan_2d]
           : [];
 
@@ -521,9 +514,7 @@ export default function PropertyDetailsPage() {
     type?: "bool" | "text";
   }) => (
     <div className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-      <span className="text-gray-500 text-sm">
-        {label}
-      </span>
+      <span className="text-gray-500 text-sm">{label}</span>
 
       {type === "bool" ? (
         value ? (
@@ -574,12 +565,9 @@ export default function PropertyDetailsPage() {
             <Heart
               fill={isSaved ? "currentColor" : "none"}
               className={`w-4 h-4 mr-2 ${
-                isSaved
-                  ? "text-red-500"
-                  : "text-gray-400"
+                isSaved ? "text-red-500" : "text-gray-400"
               }`}
             />
-
             {isSaved ? "Saved" : "Save"}
           </button>
 
@@ -640,22 +628,21 @@ export default function PropertyDetailsPage() {
               </button>
             )}
 
-            {property.model_3d_url &&
-              property.has_3d_model && (
-                <button
-                  onClick={() => {
-                    setActiveTab("3dtour");
-                    setCurrentIndex(0);
-                  }}
-                  className={`px-5 py-2.5 rounded-full font-medium transition-all ${
-                    activeTab === "3dtour"
-                      ? "bg-[#1c3053] text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  3D Tour
-                </button>
-              )}
+            {property.model_3d_url && property.has_3d_model && (
+              <button
+                onClick={() => {
+                  setActiveTab("3dtour");
+                  setCurrentIndex(0);
+                }}
+                className={`px-5 py-2.5 rounded-full font-medium transition-all ${
+                  activeTab === "3dtour"
+                    ? "bg-[#1c3053] text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                3D Tour
+              </button>
+            )}
           </div>
 
           <div
@@ -730,9 +717,7 @@ export default function PropertyDetailsPage() {
                 </div>
               </>
             ) : (
-              <span className="text-gray-400">
-                No media available
-              </span>
+              <span className="text-gray-400">No media available</span>
             )}
           </div>
         </div>
@@ -822,8 +807,7 @@ export default function PropertyDetailsPage() {
               </div>
 
               <p className="text-gray-700 font-light leading-relaxed text-lg whitespace-pre-wrap">
-                {property.description ||
-                  "No description available."}
+                {property.description || "No description available."}
               </p>
             </div>
 
@@ -866,9 +850,7 @@ export default function PropertyDetailsPage() {
 
                   <FeatureRow
                     label="Broadband"
-                    value={
-                      property.broadband_info || "Ask Agent"
-                    }
+                    value={property.broadband_info || "Ask Agent"}
                     type="text"
                   />
                 </div>
@@ -880,17 +862,13 @@ export default function PropertyDetailsPage() {
                 <div className="space-y-4">
                   <FeatureRow
                     label="Available From"
-                    value={
-                      property.available_from || "Ask Agent"
-                    }
+                    value={property.available_from || "Ask Agent"}
                     type="text"
                   />
 
                   <FeatureRow
                     label="Preferred Minimum Tenancy"
-                    value={
-                      property.preferred_min_tenancy || "-"
-                    }
+                    value={property.preferred_min_tenancy || "-"}
                     type="text"
                   />
 
@@ -1102,9 +1080,7 @@ export default function PropertyDetailsPage() {
                         type="text"
                         required
                         value={msgName}
-                        onChange={(e) =>
-                          setMsgName(e.target.value)
-                        }
+                        onChange={(e) => setMsgName(e.target.value)}
                         className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors"
                         placeholder="John Doe"
                       />
@@ -1119,9 +1095,7 @@ export default function PropertyDetailsPage() {
                         type="email"
                         required
                         value={msgEmail}
-                        onChange={(e) =>
-                          setMsgEmail(e.target.value)
-                        }
+                        onChange={(e) => setMsgEmail(e.target.value)}
                         className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors"
                         placeholder="john@example.com"
                       />
@@ -1136,9 +1110,7 @@ export default function PropertyDetailsPage() {
                     <input
                       type="tel"
                       value={msgPhone}
-                      onChange={(e) =>
-                        setMsgPhone(e.target.value)
-                      }
+                      onChange={(e) => setMsgPhone(e.target.value)}
                       className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors"
                       placeholder="+44 7000 000000"
                     />
@@ -1153,9 +1125,7 @@ export default function PropertyDetailsPage() {
                       required
                       rows={4}
                       value={msgText}
-                      onChange={(e) =>
-                        setMsgText(e.target.value)
-                      }
+                      onChange={(e) => setMsgText(e.target.value)}
                       className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors resize-none"
                       placeholder="I would like to know more about..."
                     />
@@ -1185,14 +1155,12 @@ export default function PropertyDetailsPage() {
               <div className="text-center pb-6 border-b border-gray-100">
                 <div
                   className={`inline-block text-xs font-semibold px-3 py-1 rounded-full mb-3 ${
-                    property.availability_status ===
-                    "Available"
+                    property.availability_status === "Available"
                       ? "bg-green-100 text-green-800"
                       : "bg-orange-100 text-orange-800"
                   }`}
                 >
-                  {property.availability_status ||
-                    "Contact Agent"}
+                  {property.availability_status || "Contact Agent"}
                 </div>
 
                 <p className="text-4xl font-bold text-[#1c3053]">
@@ -1219,8 +1187,8 @@ export default function PropertyDetailsPage() {
                   </h4>
 
                   <p className="text-sm text-green-700 font-light">
-                    Scheduled for {selectedDate} at{" "}
-                    {selectedTime}. We will contact you shortly.
+                    Scheduled for {selectedDate} at {selectedTime}.
+                    We will contact you shortly.
                   </p>
                 </div>
               ) : (
@@ -1246,11 +1214,7 @@ export default function PropertyDetailsPage() {
 
                     <input
                       type="date"
-                      min={
-                        new Date()
-                          .toISOString()
-                          .split("T")[0]
-                      }
+                      min={new Date().toISOString().split("T")[0]}
                       value={selectedDate}
                       onChange={(e) => {
                         setSelectedDate(e.target.value);
@@ -1276,9 +1240,7 @@ export default function PropertyDetailsPage() {
                     ) : (
                       <select
                         value={selectedTime}
-                        onChange={(e) =>
-                          setSelectedTime(e.target.value)
-                        }
+                        onChange={(e) => setSelectedTime(e.target.value)}
                         className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
                       >
                         {availableSlots.map((slot) => (
@@ -1299,9 +1261,7 @@ export default function PropertyDetailsPage() {
                       type="text"
                       required
                       value={userName}
-                      onChange={(e) =>
-                        setUserName(e.target.value)
-                      }
+                      onChange={(e) => setUserName(e.target.value)}
                       className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
                       placeholder="John Smith"
                     />
@@ -1316,9 +1276,7 @@ export default function PropertyDetailsPage() {
                       type="tel"
                       required
                       value={userPhone}
-                      onChange={(e) =>
-                        setUserPhone(e.target.value)
-                      }
+                      onChange={(e) => setUserPhone(e.target.value)}
                       className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
                       placeholder="+44 7000 000000"
                     />
