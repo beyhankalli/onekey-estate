@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
 import { WishlistProvider } from "@/context/WishlistContext";
+import { CompareProvider } from "@/context/CompareContext";
 import SiteChrome from "@/components/SiteChrome";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -34,7 +35,9 @@ export default function RootLayout({
         className={`${inter.className} bg-white text-gray-900 antialiased flex flex-col min-h-screen`}
       >
         <WishlistProvider>
-          <SiteChrome>{children}</SiteChrome>
+          <CompareProvider>
+            <SiteChrome>{children}</SiteChrome>
+          </CompareProvider>
         </WishlistProvider>
       </body>
     </html>

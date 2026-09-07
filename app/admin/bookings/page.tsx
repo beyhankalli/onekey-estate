@@ -7,17 +7,18 @@ import { CalendarCheck, Check, X, Ban } from "lucide-react";
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const supabase = createClient();
 
   const fetchBookings = async () => {
     setLoading(true);
-    // İlan (properties) ve Ajan (agents) bilgileriyle birlikte tüm randevuları çekiyoruz
+
     const { data, error } = await supabase
       .from("bookings")
       .select("*, property:properties(title, property_ref), agent:agents(name)")
       .order("viewing_date", { ascending: false })
       .order("start_time", { ascending: true });
-      
+
     if (data) setBookings(data);
     if (error) console.error("Error fetching bookings:", error);
     setLoading(false);
@@ -28,22 +29,59 @@ export default function AdminBookingsPage() {
   }, [supabase]);
 
   const updateStatus = async (id: string, newStatus: string) => {
-    const { error } = await supabase.from("bookings").update({ status: newStatus }).eq("id", id);
-    if (error) {
-      alert("Error updating status: " + error.message);
-    } else {
-      fetchBookings();
+    setUpdatingId(id);
+
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: newStatus })
+        .eq("id", id);
+
+      if (error) {
+        alert("Error updating status: " + error.message);
+        return;
+      }
+
+      try {
+        const notificationResponse = await fetch("/api/bookings/status-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookingId: id, status: newStatus }),
+        });
+
+        if (!notificationResponse.ok) {
+          console.error(
+            "Booking status email failed:",
+            await notificationResponse.text()
+          );
+        }
+      } catch (emailError) {
+        console.error("Booking status email request failed:", emailError);
+      }
+
+      await fetchBookings();
+    } finally {
+      setUpdatingId(null);
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const styles: any = {
+    const styles: Record<string, string> = {
       pending: "bg-blue-100 text-blue-800",
       confirmed: "bg-green-100 text-green-800",
       rejected: "bg-red-100 text-red-800",
-      cancelled: "bg-gray-100 text-gray-800"
+      cancelled: "bg-gray-100 text-gray-800",
     };
-    return <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${styles[status] || styles.pending}`}>{status}</span>;
+
+    return (
+      <span
+        className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
+          styles[status] || styles.pending
+        }`}
+      >
+        {status}
+      </span>
+    );
   };
 
   if (loading) return <div className="text-gray-500">Loading bookings...</div>;
@@ -52,7 +90,9 @@ export default function AdminBookingsPage() {
     <div className="max-w-7xl mx-auto pb-12">
       <div className="mb-8">
         <h1 className="text-3xl font-semibold text-gray-900">Viewing Bookings</h1>
-        <p className="text-gray-500 font-light mt-1">Manage property viewings and agent schedules.</p>
+        <p className="text-gray-500 font-light mt-1">
+          Manage property viewings and agent schedules.
+        </p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 overflow-hidden">
@@ -77,27 +117,56 @@ export default function AdminBookingsPage() {
                 <tr key={b.id} className="hover:bg-gray-50/80 transition-colors">
                   <td className="p-5">
                     <p className="font-semibold text-gray-900">{b.viewing_date}</p>
-                    <p className="text-gray-500">{b.start_time.substring(0, 5)} - {b.end_time.substring(0, 5)}</p>
+                    <p className="text-gray-500">
+                      {b.start_time.substring(0, 5)} - {b.end_time.substring(0, 5)}
+                    </p>
                   </td>
                   <td className="p-5">
-                    <p className="font-medium text-[#1c3053] line-clamp-1">{b.property?.title || "Property Deleted"}</p>
-                    <p className="text-xs text-gray-400">Agent: {b.agent?.name || "Unassigned"}</p>
+                    <p className="font-medium text-[#1c3053] line-clamp-1">
+                      {b.property?.title || "Property Deleted"}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Agent: {b.agent?.name || "Unassigned"}
+                    </p>
                   </td>
                   <td className="p-5">
                     <p className="font-medium text-gray-900">{b.customer_name}</p>
                     <p className="text-xs text-gray-500">{b.customer_phone}</p>
-                    {b.customer_email && <p className="text-xs text-gray-500">{b.customer_email}</p>}
+                    {b.customer_email && (
+                      <p className="text-xs text-gray-500">{b.customer_email}</p>
+                    )}
                   </td>
                   <td className="p-5">{getStatusBadge(b.status)}</td>
                   <td className="p-5 text-right space-x-2">
-                    {b.status === 'pending' && (
+                    {b.status === "pending" && (
                       <>
-                        <button onClick={() => updateStatus(b.id, 'confirmed')} className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg" title="Confirm"><Check className="w-4 h-4" /></button>
-                        <button onClick={() => updateStatus(b.id, 'rejected')} className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg" title="Reject"><X className="w-4 h-4" /></button>
+                        <button
+                          onClick={() => updateStatus(b.id, "confirmed")}
+                          disabled={updatingId === b.id}
+                          className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg disabled:opacity-50"
+                          title="Confirm"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => updateStatus(b.id, "rejected")}
+                          disabled={updatingId === b.id}
+                          className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg disabled:opacity-50"
+                          title="Reject"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </>
                     )}
-                    {b.status === 'confirmed' && (
-                      <button onClick={() => updateStatus(b.id, 'cancelled')} className="p-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg" title="Cancel Booking"><Ban className="w-4 h-4" /></button>
+                    {b.status === "confirmed" && (
+                      <button
+                        onClick={() => updateStatus(b.id, "cancelled")}
+                        disabled={updatingId === b.id}
+                        className="p-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+                        title="Cancel Booking"
+                      >
+                        <Ban className="w-4 h-4" />
+                      </button>
                     )}
                   </td>
                 </tr>
