@@ -33,15 +33,17 @@ export function Hero() {
           Find Your Next Home <br className="hidden md:block" />
           With <span className="text-[#ae884e]">OneKey.</span>
         </motion.h1>
+
         <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2 }} className="text-lg md:text-xl text-gray-500 font-light max-w-2xl mx-auto mb-12">
           Premium properties, transparent service, and a modern approach to renting in the UK.
         </motion.p>
-        
+
         <motion.form onSubmit={handleSearch} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4 }} className="max-w-3xl mx-auto flex flex-col md:flex-row gap-4 bg-white p-4 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100">
           <div className="relative flex-1">
             <Search className="w-6 h-6 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
             <input type="text" placeholder="Postcode, area, or street (e.g. E14)" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 pr-4 py-4 rounded-2xl bg-transparent text-gray-900 placeholder:text-gray-400 focus:outline-none text-lg" />
           </div>
+
           <button type="submit" className="bg-[#1c3053] text-white px-8 py-4 rounded-2xl font-medium text-lg hover:bg-[#ae884e] transition-all shadow-md">
             Search Properties
           </button>
@@ -55,40 +57,39 @@ export function Hero() {
 // 2. ÖNE ÇIKAN İLANLAR (GERÇEK VERİ İLE GÜNCELLENDİ)
 // ==========================================
 export function FeaturedProperties() {
-  // Gerçek verileri tutacağımız state'ler
   const [featured, setFeatured] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  // Sayfa yüklendiğinde Supabase'den öne çıkan ilanları çeker
   useEffect(() => {
     async function fetchFeaturedProperties() {
       const { data, error } = await supabase
         .from("properties")
-        .select("*, property_images(url, image_type)") // İlanları ve resimlerini beraber çek
-        .eq("is_featured", true) // Sadece öne çıkanlar (Admin panelindeki checkbox)
-        .order("created_at", { ascending: false }) // En yeniler önce
-        .limit(6); // Ana sayfada çok kalabalık olmaması için en fazla 6 tane göster
+        .select("*, property_images(url, image_type)")
+        .eq("is_featured", true)
+        .order("created_at", { ascending: false })
+        .limit(6);
 
       if (data) {
         setFeatured(data);
       }
+
       if (error) {
         console.error("Error fetching featured properties:", error);
       }
+
       setLoading(false);
     }
 
     fetchFeaturedProperties();
   }, [supabase]);
 
-  // Kapak fotoğrafını bulmak için yardımcı fonksiyon
   const getMainImage = (prop: any) => {
     if (prop.property_images && prop.property_images.length > 0) {
-      // Önce iç mekan (interior) fotoğrafı arar, bulamazsa ilk fotoğrafı gösterir
-      const interior = prop.property_images.find((img: any) => img.image_type === 'interior');
+      const interior = prop.property_images.find((img: any) => img.image_type === "interior");
       return interior ? interior.url : prop.property_images[0].url;
     }
+
     return null;
   };
 
@@ -97,37 +98,59 @@ export function FeaturedProperties() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
-            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-4">Featured Properties<span className="text-[#ae884e]">.</span></h2>
-            <p className="text-gray-500 font-light text-lg">Hand-picked premium homes ready for you.</p>
+            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-4">
+              Featured Properties<span className="text-[#ae884e]">.</span>
+            </h2>
+
+            <p className="text-gray-500 font-light text-lg">
+              Hand-picked premium homes ready for you.
+            </p>
           </div>
+
           <Link href="/listings" className="text-[#1c3053] font-medium hover:text-[#ae884e] transition-colors flex items-center">
             View All <ChevronRight className="w-4 h-4 ml-1" />
           </Link>
         </div>
 
-        {/* Veriler yüklenirken gösterilecek mesaj */}
         {loading ? (
-          <div className="text-center py-10 text-gray-500">Loading featured properties...</div>
+          <div className="text-center py-10 text-gray-500">
+            Loading featured properties...
+          </div>
         ) : featured.length === 0 ? (
           <div className="text-center py-10 text-gray-500 border border-gray-100 rounded-2xl bg-gray-50">
             No featured properties available at the moment.
           </div>
         ) : (
-          /* Mobilde yatay kaydırma, Masaüstünde Grid */
           <div className="flex overflow-x-auto snap-x snap-mandatory gap-8 pb-8 hide-scrollbar md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible">
             {featured.map((prop, index) => {
               const mainImageUrl = getMainImage(prop);
-              
+
               return (
-                <motion.div key={prop.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: index * 0.1 }} className="min-w-[85vw] md:min-w-0 snap-center">
-                  <Link href={`/listings/${prop.id}`} className="group block bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-300 flex flex-col h-full cursor-pointer">
-                    
+                <motion.div
+                  key={prop.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  className="min-w-[85vw] md:min-w-0 snap-center"
+                >
+                  <Link
+                    href={`/listings/${prop.id}`}
+                    className="group block bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-300 flex flex-col h-full cursor-pointer"
+                  >
                     <div className="w-full h-64 overflow-hidden relative bg-gray-100 flex items-center justify-center">
                       {mainImageUrl ? (
                         mainImageUrl.match(/\.(mp4|webm|mov)$/i) ? (
-                          <video src={mainImageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <video
+                            src={mainImageUrl}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
                         ) : (
-                          <img src={mainImageUrl} alt={prop.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <img
+                            src={mainImageUrl}
+                            alt={prop.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
                         )
                       ) : (
                         <div className="text-gray-400 flex flex-col items-center">
@@ -135,24 +158,47 @@ export function FeaturedProperties() {
                           <span className="text-sm">No Image</span>
                         </div>
                       )}
-                      <div className={`absolute top-4 right-4 text-xs font-semibold px-3 py-1.5 rounded-full ${prop.availability_status === 'Available' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
+
+                      <div className={`absolute top-4 right-4 text-xs font-semibold px-3 py-1.5 rounded-full ${prop.availability_status === "Available" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}`}>
                         {prop.availability_status}
                       </div>
                     </div>
 
                     <div className="p-8 flex flex-col flex-grow">
-                      <h3 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2 line-clamp-1">{prop.title}</h3>
-                      <div className="flex items-center text-gray-600 mb-5"><MapPin className="w-4 h-4 mr-1.5 text-[#ae884e]" /><span className="text-sm font-medium">{prop.short_location}</span></div>
-                      <div className="text-2xl font-medium text-[#1c3053] mb-6">£{prop.monthly_rent?.toLocaleString()} <span className="text-sm text-gray-400 font-light">pcm</span></div>
-                      <div className="flex gap-6 mb-8 border-t border-gray-100 pt-6">
-                        <div className="flex items-center text-gray-600"><Bed className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" /><span className="font-light">{prop.bedrooms} Beds</span></div>
-                        <div className="flex items-center text-gray-600"><Bath className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" /><span className="font-light">{prop.bathrooms} Baths</span></div>
+                      <h3 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2 line-clamp-1">
+                        {prop.title}
+                      </h3>
+
+                      <div className="flex items-center text-gray-600 mb-5">
+                        <MapPin className="w-4 h-4 mr-1.5 text-[#ae884e]" />
+                        <span className="text-sm font-medium">
+                          {prop.short_location}
+                        </span>
                       </div>
+
+                      <div className="text-2xl font-medium text-[#1c3053] mb-6">
+                        £{prop.monthly_rent?.toLocaleString()}{" "}
+                        <span className="text-sm text-gray-400 font-light">
+                          pcm
+                        </span>
+                      </div>
+
+                      <div className="flex gap-6 mb-8 border-t border-gray-100 pt-6">
+                        <div className="flex items-center text-gray-600">
+                          <Bed className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" />
+                          <span className="font-light">{prop.bedrooms} Beds</span>
+                        </div>
+
+                        <div className="flex items-center text-gray-600">
+                          <Bath className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" />
+                          <span className="font-light">{prop.bathrooms} Baths</span>
+                        </div>
+                      </div>
+
                       <div className="mt-auto flex items-center justify-center w-full bg-[#1c3053]/5 text-[#1c3053] py-4 rounded-2xl font-medium text-[15px] group-hover:bg-[#ae884e] group-hover:text-white transition-all duration-300">
                         View Property <ChevronRight className="w-4 h-4 ml-1" />
                       </div>
                     </div>
-
                   </Link>
                 </motion.div>
               );
@@ -179,15 +225,33 @@ export function WhyOneKey() {
     <section className="py-24 bg-[#1c3053] text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-16 text-center">
-          <h2 className="text-3xl md:text-4xl font-semibold mb-4">Why OneKey Estate Agency<span className="text-[#ae884e]">?</span></h2>
-          <p className="text-blue-200 font-light text-lg">Setting a new standard in the UK rental market.</p>
+          <h2 className="text-3xl md:text-4xl font-semibold mb-4">
+            Why OneKey Estate Agency<span className="text-[#ae884e]">?</span>
+          </h2>
+
+          <p className="text-blue-200 font-light text-lg">
+            Setting a new standard in the UK rental market.
+          </p>
         </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {benefits.map((b, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.1 }}>
-              <div className="text-[#ae884e] text-2xl font-bold mb-4">{b.num}</div>
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+            >
+              <div className="text-[#ae884e] text-2xl font-bold mb-4">
+                {b.num}
+              </div>
+
               <h3 className="text-xl font-semibold mb-3">{b.title}</h3>
-              <p className="text-blue-200 font-light leading-relaxed">{b.desc}</p>
+
+              <p className="text-blue-200 font-light leading-relaxed">
+                {b.desc}
+              </p>
             </motion.div>
           ))}
         </div>
@@ -209,14 +273,28 @@ export function HowItWorks() {
   return (
     <section className="py-24 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-16">How It Works<span className="text-[#ae884e]">.</span></h2>
+        <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-16">
+          How It Works<span className="text-[#ae884e]">.</span>
+        </h2>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
           {steps.map((s, i) => (
-            <motion.div key={i} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.2 }} className="bg-white p-10 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col items-center">
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.2 }}
+              className="bg-white p-10 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col items-center"
+            >
               <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-[#ae884e]">
                 <s.icon className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">0{i+1} — {s.title}</h3>
+
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                0{i + 1} — {s.title}
+              </h3>
+
               <p className="text-gray-500 font-light">{s.desc}</p>
             </motion.div>
           ))}
@@ -233,11 +311,18 @@ export function AboutPreview() {
   return (
     <section className="py-24 bg-white">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <h2 className="text-3xl md:text-5xl font-semibold text-[#1c3053] mb-6">Property, made simple<span className="text-[#ae884e]">.</span></h2>
+        <h2 className="text-3xl md:text-5xl font-semibold text-[#1c3053] mb-6">
+          Property, made simple<span className="text-[#ae884e]">.</span>
+        </h2>
+
         <p className="text-xl text-gray-600 font-light leading-relaxed mb-10">
           OneKey Estate Agency combines cutting-edge modern technology with dedicated personal service. We believe finding your next home should be transparent, straightforward, and entirely stress-free.
         </p>
-        <Link href="/about" className="inline-flex items-center justify-center px-8 py-4 border-2 border-[#1c3053] text-[#1c3053] rounded-2xl font-medium hover:bg-[#1c3053] hover:text-white transition-all">
+
+        <Link
+          href="/about"
+          className="inline-flex items-center justify-center px-8 py-4 border-2 border-[#1c3053] text-[#1c3053] rounded-2xl font-medium hover:bg-[#1c3053] hover:text-white transition-all"
+        >
           Learn More About Us
         </Link>
       </div>
@@ -249,33 +334,93 @@ export function AboutPreview() {
 // 6. MÜŞTERİ YORUMLARI
 // ==========================================
 export function ReviewsPreview() {
-  const reviews = [
-    { name: "Emily R.", loc: "Rented in Canary Wharf", text: "Incredibly smooth process from viewing to moving in. The agent was always available on WhatsApp." },
-    { name: "David T.", loc: "Rented in Richmond", text: "OneKey made finding a pet-friendly home so easy. Highly recommend their modern approach." },
-    { name: "Sarah & James", loc: "Rented in Hampstead", text: "Professional, transparent and completely stress-free. The 3D tours saved us so much time." }
-  ];
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchReviews() {
+      const supabase = createClient();
+
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("id, client_name, location_tag, comment, rating, created_at")
+        .eq("is_approved", true)
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      if (error) {
+        console.error("Error fetching reviews:", error);
+      } else {
+        setReviews(data || []);
+      }
+
+      setLoading(false);
+    }
+
+    fetchReviews();
+  }, []);
 
   return (
     <section className="py-24 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-4">What Our Clients Say</h2>
-          <Link href="/reviews" className="text-[#ae884e] hover:underline font-medium">View All Reviews &rarr;</Link>
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-4">
+            What Our Clients Say
+          </h2>
+
+          <Link
+            href="/reviews"
+            className="text-[#ae884e] hover:underline font-medium"
+          >
+            View All Reviews &rarr;
+          </Link>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {reviews.map((r, i) => (
-            <div key={i} className="bg-white p-10 rounded-[2rem] shadow-sm border border-gray-100">
-              <div className="flex gap-1 mb-6 text-[#ae884e]">
-                {[...Array(5)].map((_, idx) => <Star key={idx} className="w-5 h-5 fill-current" />)}
+
+        {loading ? (
+          <div className="text-center py-10 text-gray-500">
+            Loading reviews...
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="text-center py-10 text-gray-500">
+            No reviews available at the moment.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {reviews.map((review) => (
+              <div
+                key={review.id}
+                className="bg-white p-10 rounded-[2rem] shadow-sm border border-gray-100"
+              >
+                <div className="flex gap-1 mb-6 text-[#ae884e]">
+                  {[...Array(Math.min(Math.max(review.rating || 5, 0), 5))].map(
+                    (_, idx) => (
+                      <Star
+                        key={idx}
+                        className="w-5 h-5 fill-current"
+                      />
+                    )
+                  )}
+                </div>
+
+                <p className="text-gray-700 italic font-light mb-8">
+                  "{review.comment}"
+                </p>
+
+                <div>
+                  <h4 className="font-semibold text-gray-900">
+                    {review.client_name}
+                  </h4>
+
+                  {review.location_tag && (
+                    <p className="text-sm text-gray-500 font-light">
+                      {review.location_tag}
+                    </p>
+                  )}
+                </div>
               </div>
-              <p className="text-gray-700 italic font-light mb-8">"{r.text}"</p>
-              <div>
-                <h4 className="font-semibold text-gray-900">{r.name}</h4>
-                <p className="text-sm text-gray-500 font-light">{r.loc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -288,14 +433,26 @@ export function FinalCTA() {
   return (
     <section className="py-24 bg-[#1c3053] text-center px-4">
       <div className="max-w-3xl mx-auto">
-        <h2 className="text-4xl md:text-5xl font-semibold text-white mb-6">Ready to find your next home?</h2>
-        <p className="text-xl text-blue-200 font-light mb-10">Explore our available properties and book a viewing online today.</p>
+        <h2 className="text-4xl md:text-5xl font-semibold text-white mb-6">
+          Ready to find your next home?
+        </h2>
+
+        <p className="text-xl text-blue-200 font-light mb-10">
+          Explore our available properties and book a viewing online today.
+        </p>
+
         <div className="flex flex-col sm:flex-row justify-center gap-4">
-          <Link href="/listings" className="bg-[#ae884e] text-white px-8 py-4 rounded-2xl font-medium hover:bg-white hover:text-[#1c3053] transition-all shadow-lg">
+          <Link
+            href="/listings"
+            className="bg-[#ae884e] text-white px-8 py-4 rounded-2xl font-medium hover:bg-white hover:text-[#1c3053] transition-all shadow-lg"
+          >
             View Properties
           </Link>
-          
-          <Link href="/contact" className="bg-transparent border-2 border-white/30 text-white px-8 py-4 rounded-2xl font-medium hover:bg-white hover:text-[#1c3053] transition-all">
+
+          <Link
+            href="/contact"
+            className="bg-transparent border-2 border-white/30 text-white px-8 py-4 rounded-2xl font-medium hover:bg-white hover:text-[#1c3053] transition-all"
+          >
             Contact Us
           </Link>
         </div>

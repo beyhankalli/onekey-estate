@@ -395,22 +395,22 @@ export default function PropertyDetailsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Your Name *</label>
-                      <input type="text" required value={msgName} onChange={(e) => setMsgName(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors" placeholder="John Doe" />
+                      <input type="text" required value={msgName} onChange={(e) => setMsgName(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors" placeholder="John Doe" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
-                      <input type="email" required value={msgEmail} onChange={(e) => setMsgEmail(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors" placeholder="john@example.com" />
+                      <input type="email" required value={msgEmail} onChange={(e) => setMsgEmail(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors" placeholder="john@example.com" />
                     </div>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number (Optional)</label>
-                    <input type="tel" value={msgPhone} onChange={(e) => setMsgPhone(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors" placeholder="+44 7000 000000" />
+                    <input type="tel" value={msgPhone} onChange={(e) => setMsgPhone(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors" placeholder="+44 7000 000000" />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Your Message *</label>
-                    <textarea required rows={4} value={msgText} onChange={(e) => setMsgText(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors resize-none" placeholder="I would like to know more about..." />
+                    <textarea required rows={4} value={msgText} onChange={(e) => setMsgText(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors resize-none" placeholder="I would like to know more about..." />
                   </div>
                   
                   {/* MESAJ BUTONU: Normalde lacivert (#1c3053), üzerine gelince altın sarısı (#ae884e) olur */}
