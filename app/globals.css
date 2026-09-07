@@ -24,3 +24,18 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* OneKey loading logo: colour fills from bottom to top */
+@keyframes logo-fill {
+  0% {
+    clip-path: inset(100% 0 0 0);
+  }
+
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animate-logo-fill {
+  animation: logo-fill 1.8s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
