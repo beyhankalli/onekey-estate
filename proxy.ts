@@ -31,41 +31,50 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const pathname = request.nextUrl.pathname;
 
-  // Admin login page must remain publicly accessible.
   if (pathname === "/admin/login") {
     return supabaseResponse;
   }
 
-  // Protect all admin pages.
-  if (pathname.startsWith("/admin")) {
-    if (!user) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/admin/login";
-      url.searchParams.set("redirect", pathname);
+  if (!pathname.startsWith("/admin")) {
+    return supabaseResponse;
+  }
 
-      return NextResponse.redirect(url);
-    }
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-    // Check whether the authenticated user is an approved admin.
-    const { data: adminUser, error: adminError } = await supabase
-      .from("admin_users")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+  if (userError || !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    url.search = "";
+    url.searchParams.set("redirect", pathname);
 
-    if (adminError || !adminUser) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/admin/login";
-      url.search = "";
+    return NextResponse.redirect(url);
+  }
 
-      return NextResponse.redirect(url);
-    }
+  const { data: isAdmin, error: adminError } = await supabase.rpc(
+    "is_admin_user"
+  );
+
+  if (adminError) {
+    console.error("Admin authorization check failed:", adminError);
+
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    url.search = "";
+
+    return NextResponse.redirect(url);
+  }
+
+  if (!isAdmin) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    url.search = "";
+
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;

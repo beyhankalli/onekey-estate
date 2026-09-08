@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -97,7 +98,7 @@ export default function FeaturedProperties() {
       }
 
       if (property.weekly_rent != null) {
-        return Number(property.weekly_rent) * 52 / 12;
+        return (Number(property.weekly_rent) * 52) / 12;
       }
 
       return 0;
@@ -169,7 +170,7 @@ export default function FeaturedProperties() {
       <div className="mb-12 text-center">
         <h2 className="text-4xl font-semibold tracking-tight text-gray-900 mb-4">
           Featured Properties
-          <span className="text-[#ae884e]">.</span>
+          <span className="text-[#ae884e].">.</span>
         </h2>
 
         <p className="text-gray-500 text-lg font-light mb-8">
@@ -235,10 +236,13 @@ export default function FeaturedProperties() {
               className="bg-white rounded-[2rem] overflow-hidden border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-300 flex flex-col group"
             >
               <div className="w-full h-64 overflow-hidden relative">
-                <img
+                <Image
                   src={getPropertyImage(property)}
                   alt={property.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  unoptimized
+                  className="object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
@@ -68,9 +69,12 @@ export default function AdminLogin() {
     <div className="min-h-screen bg-[#1c3053] flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-md">
         <div className="text-center mb-8">
-          <img
+          <Image
             src="/onekey-logo.png"
             alt="OneKey Estate Agency Logo"
+            width={200}
+            height={48}
+            sizes="200px"
             className="h-12 w-auto mx-auto mb-6"
           />
 

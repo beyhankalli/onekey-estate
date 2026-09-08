@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   MapPin,
@@ -88,6 +89,27 @@ type SearchFilters = {
 const SAVED_SEARCHES_KEY = "onekey_saved_searches";
 const MAX_SAVED_SEARCHES = 10;
 
+const PROPERTY_SELECT = `
+  id,
+  title,
+  property_ref,
+  short_location,
+  full_address,
+  postcode,
+  monthly_rent,
+  bedrooms,
+  bathrooms,
+  availability_status,
+  pets_allowed,
+  garden,
+  parking,
+  student_friendly,
+  families_allowed,
+  dss_lha_covers_rent,
+  created_at,
+  property_images(url, image_type)
+`;
+
 export default function PublicListingsPage() {
   const { toggleWishlist, isInWishlist } = useWishlist();
 
@@ -129,7 +151,7 @@ export default function PublicListingsPage() {
 
       const { data, error: fetchError } = await supabase
         .from("properties")
-        .select("*, property_images(url, image_type)")
+        .select(PROPERTY_SELECT)
         .order("created_at", { ascending: false });
 
       if (fetchError) {
@@ -755,9 +777,7 @@ export default function PublicListingsPage() {
               {filteredProperties.length}
             </span>{" "}
             of{" "}
-            <span className="text-gray-900">
-              {properties.length}
-            </span>{" "}
+            <span className="text-gray-900">{properties.length}</span>{" "}
             properties
           </p>
 
@@ -769,12 +789,12 @@ export default function PublicListingsPage() {
             {sortOrder === "newest"
               ? "Newest"
               : sortOrder === "price-asc"
-              ? "Lowest price"
-              : sortOrder === "price-desc"
-              ? "Highest price"
-              : sortOrder === "beds-desc"
-              ? "Most bedrooms"
-              : "Fewest bedrooms"}
+                ? "Lowest price"
+                : sortOrder === "price-desc"
+                  ? "Highest price"
+                  : sortOrder === "beds-desc"
+                    ? "Most bedrooms"
+                    : "Fewest bedrooms"}
           </button>
         </div>
 
@@ -812,13 +832,14 @@ export default function PublicListingsPage() {
             {filteredProperties.map((property) => {
               const thumbnail =
                 property.property_images?.find(
-                  (img) => img.image_type === "exterior"
+                  (img) => img.image_type === "exterior" && img.url
                 )?.url ||
                 property.property_images?.find(
-                  (img) => img.image_type === "main"
+                  (img) => img.image_type === "main" && img.url
                 )?.url ||
-                property.property_images?.[0]?.url ||
-                "https://via.placeholder.com/600x400?text=No+Image";
+                property.property_images?.find((img) => Boolean(img.url))
+                  ?.url ||
+                null;
 
               const isSaved = isInWishlist(property.id);
 
@@ -828,11 +849,20 @@ export default function PublicListingsPage() {
                   className="bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] group flex flex-col transition-all hover:-translate-y-1 hover:shadow-[0_16px_40px_rgb(0,0,0,0.08)]"
                 >
                   <div className="relative h-64 overflow-hidden bg-gray-100">
-                    <img
-                      src={thumbnail}
-                      alt={property.title || "Property"}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    />
+                    {thumbnail ? (
+                      <Image
+                        src={thumbnail}
+                        alt={property.title || "Property"}
+                        fill
+                        sizes="(max-width: 767px) 100vw, (max-width: 1023px) 50vw, 33vw"
+                        quality={75}
+                        className="object-cover transition-transform duration-700 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                        <HomeIcon className="w-12 h-12 text-gray-300" />
+                      </div>
+                    )}
 
                     <div className="absolute top-4 left-4">
                       <span

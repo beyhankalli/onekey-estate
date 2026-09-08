@@ -1,19 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-// YENİ: Heart (Kalp) ikonunu lucide-react kütüphanesinden içe aktarıyoruz
-import { Menu, X, Heart } from "lucide-react";
+// Çakışmayı önlemek için User ikonunu UserIcon adıyla içe aktarıyoruz
+import { Menu, X, Heart, User as UserIcon } from "lucide-react"; 
 import { motion, AnimatePresence } from "framer-motion";
-// YENİ: Favori sayısını okuyabilmek için oluşturduğumuz Context'i içe aktarıyoruz
 import { useWishlist } from "@/context/WishlistContext";
+import { createClient } from "@/lib/supabase/client";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  
-  // YENİ: Context'ten favori listemizi (wishlist) alıyoruz
   const { wishlist } = useWishlist();
+
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Supabase istemcisini ve oturum kontrolünü güvenli bir şekilde useEffect içine alıyoruz
+  useEffect(() => {
+    const supabase = createClient();
+
+    const checkAuthStatus = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsLoggedIn(!!session);
+      setAuthLoading(false);
+    };
+
+    checkAuthStatus();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const toggleMenu = () => setIsOpen(!isOpen);
 
@@ -22,6 +42,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           
+          {/* LOGO ALANI */}
           <div className="flex-shrink-0 flex items-center">
             <Link href="/">
               <Image 
@@ -35,8 +56,8 @@ export default function Navbar() {
             </Link>
           </div>
 
+          {/* MOBİL MENÜ BUTONLARI */}
           <div className="flex md:hidden items-center gap-4">
-            {/* YENİ MOBİL KALP İKONU: Telefondan girenler için üst barda kalp ikonu */}
             <Link href="/wishlist" className="relative text-gray-900 hover:text-[#ae884e] transition">
               <Heart className="h-6 w-6" />
               {wishlist.length > 0 && (
@@ -54,15 +75,14 @@ export default function Navbar() {
             </button>
           </div>
 
+          {/* MASAÜSTÜ MENÜ LİNKLERİ */}
           <div className="hidden md:flex md:items-center md:space-x-8">
             <Link href="/listings" className="text-sm font-medium text-gray-600 hover:text-black transition">Properties</Link>
             <Link href="/about" className="text-sm font-medium text-gray-600 hover:text-black transition">About Us</Link>
             <Link href="/reviews" className="text-sm font-medium text-gray-600 hover:text-black transition">Reviews</Link>
             
-            {/* YENİ MASAÜSTÜ KALP İKONU: Favoriler sayfasına giden ve sayacı olan ikon */}
             <Link href="/wishlist" className="relative flex items-center text-gray-600 hover:text-black transition">
               <Heart className="w-5 h-5" />
-              {/* Sadece favoride ürün varsa kırmızı sayı rozetini göster */}
               {wishlist.length > 0 && (
                 <span className="absolute -top-2 -right-2.5 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white bg-red-500 rounded-full border-2 border-white">
                   {wishlist.length}
@@ -70,11 +90,23 @@ export default function Navbar() {
               )}
             </Link>
 
-            <Link href="/contact" className="text-sm font-medium text-white bg-[#ae884e] px-5 py-2.5 rounded-full hover:bg-[#8f6e3c] transition">Contact Us</Link>
+            <Link href="/contact" className="text-sm font-medium text-white bg-[#ae884e] px-5 py-2.5 rounded-full hover:bg-[#8f6e3c] transition shadow-sm">
+              Contact Us
+            </Link>
+            
+            {/* AKILLI MÜŞTERİ PORTALI BUTONU */}
+            <Link 
+              href={isLoggedIn ? "/account" : "/login"} 
+              className="flex items-center gap-1.5 text-sm font-medium text-white bg-[#1c3053] px-5 py-2.5 rounded-full hover:bg-[#263f68] transition shadow-sm"
+            >
+              <UserIcon className="w-4 h-4" />
+              {authLoading ? "..." : isLoggedIn ? "My OneKey" : "Login"}
+            </Link>
           </div>
         </div>
       </div>
 
+      {/* MOBİL AÇILIR MENÜ */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -89,7 +121,6 @@ export default function Navbar() {
               <Link href="/about" className="block px-3 py-4 text-lg font-medium text-gray-900 border-b border-gray-50" onClick={toggleMenu}>About Us</Link>
               <Link href="/reviews" className="block px-3 py-4 text-lg font-medium text-gray-900 border-b border-gray-50" onClick={toggleMenu}>Reviews</Link>
               
-              {/* YENİ MOBİL LİSTE YAZISI: Mobil menü içine favoriler sekmesi */}
               <Link href="/wishlist" className="flex items-center justify-between px-3 py-4 text-lg font-medium text-gray-900 border-b border-gray-50" onClick={toggleMenu}>
                 Saved Properties
                 {wishlist.length > 0 && (
@@ -97,7 +128,17 @@ export default function Navbar() {
                 )}
               </Link>
 
-              <Link href="/contact" className="block px-3 py-4 text-lg font-medium text-[#ae884e]" onClick={toggleMenu}>Contact Us</Link>
+              <Link href="/contact" className="block px-3 py-4 text-lg font-medium text-[#ae884e] mb-4" onClick={toggleMenu}>Contact Us</Link>
+
+              {/* MOBİL AKILLI BUTON */}
+              <Link 
+                href={isLoggedIn ? "/account" : "/login"} 
+                className="flex items-center justify-center gap-2 px-4 py-3.5 text-base font-medium text-white bg-[#1c3053] hover:bg-[#263f68] rounded-xl mx-2 shadow-sm transition" 
+                onClick={toggleMenu}
+              >
+                <UserIcon className="w-5 h-5" />
+                {authLoading ? "Checking..." : isLoggedIn ? "My OneKey Portal" : "Client Login"}
+              </Link>
             </div>
           </motion.div>
         )}

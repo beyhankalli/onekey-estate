@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ArrowLeft, Save, Trash2, Upload, FileText, Box, Video, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Upload, FileText, Box } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function EditPropertyPage() {
   const router = useRouter();
@@ -32,7 +33,12 @@ export default function EditPropertyPage() {
     broadband_info: "", bills_included: false, dss_lha_covers_rent: false,
     pets_allowed: false, smokers_allowed: false, student_friendly: false, families_allowed: false,
     garden: false, parking: false, fireplace: false, online_viewings: false,
-    floor_plan_2d: "", model_3d_url: ""
+    floor_plan_2d: "", model_3d_url: "",
+    council_tax_band: "",
+    heating_type: "",
+    tenure: "",
+    minimum_tenancy: "",
+    status: "Published"
   });
 
   useEffect(() => {
@@ -59,7 +65,12 @@ export default function EditPropertyPage() {
           student_friendly: propData.student_friendly || false, families_allowed: propData.families_allowed || false,
           garden: propData.garden || false, parking: propData.parking || false,
           fireplace: propData.fireplace || false, online_viewings: propData.online_viewings || false,
-          floor_plan_2d: propData.floor_plan_2d || "", model_3d_url: propData.model_3d_url || ""
+          floor_plan_2d: propData.floor_plan_2d || "", model_3d_url: propData.model_3d_url || "",
+          council_tax_band: propData.council_tax_band || "",
+          heating_type: propData.heating_type || "",
+          tenure: propData.tenure || "",
+          minimum_tenancy: propData.minimum_tenancy?.toString() || "",
+          status: propData.status || "Published"
         });
       }
 
@@ -128,12 +139,16 @@ export default function EditPropertyPage() {
         pets_allowed: formData.pets_allowed, smokers_allowed: formData.smokers_allowed,
         student_friendly: formData.student_friendly, families_allowed: formData.families_allowed,
         garden: formData.garden, parking: formData.parking, fireplace: formData.fireplace,
-        online_viewings: formData.online_viewings
+        online_viewings: formData.online_viewings,
+        council_tax_band: formData.council_tax_band,
+        heating_type: formData.heating_type,
+        tenure: formData.tenure,
+        minimum_tenancy: formData.minimum_tenancy ? parseInt(formData.minimum_tenancy) : null,
+        status: formData.status
       }).eq("id", propertyId);
 
       if (error) throw error;
 
-      // HATA YAKALAMA (ERROR THROWING) BLOKLARI EKLENDİ
       if (newFloorPlan) {
         setUploadStatus("Uploading 2D Floor Plan...");
         const url = await uploadFileToSupabase(newFloorPlan, "floor-plans");
@@ -182,10 +197,7 @@ export default function EditPropertyPage() {
     </label>
   );
 
-  // Normal kutular için CSS
   const inputClass = "w-full p-3 rounded-xl border border-gray-300 text-gray-900 font-medium bg-white outline-none focus:border-[#ae884e] placeholder:text-gray-400";
-  
-  // YENİ: Dosya Yükleme kutuları için o taşıp bozulan görüntüyü tamamen çözen özel CSS
   const fileInputClass = "w-full p-2 rounded-xl border border-gray-300 text-gray-900 font-medium bg-white outline-none focus:border-[#ae884e] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#1c3053]/10 file:text-[#1c3053] hover:file:bg-[#1c3053]/20 cursor-pointer transition-all";
 
   if (loading) return <div className="max-w-4xl mx-auto p-8 text-gray-500">Loading property details...</div>;
@@ -198,7 +210,7 @@ export default function EditPropertyPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-semibold text-gray-900">Edit Property</h1>
-          <p className="text-gray-500 font-light mt-1">Update property details, preferences, and media.</p>
+          <p className="text-gray-500 font-light mt-1">Update property details, advanced management fields, and media.</p>
         </div>
       </div>
 
@@ -240,6 +252,40 @@ export default function EditPropertyPage() {
         </div>
 
         <div className="bg-white p-8 rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 space-y-6">
+          <h3 className="text-xl font-semibold text-gray-900 border-b border-gray-100 pb-4">Advanced Property Details</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Listing Status</label>
+              <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})} className={inputClass}>
+                <option value="Draft">Draft</option>
+                <option value="Published">Published</option>
+                <option value="Under Offer">Under Offer</option>
+                <option value="Let Agreed">Let Agreed</option>
+                <option value="Let">Let</option>
+                <option value="Sold">Sold</option>
+                <option value="Archived">Archived</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Council Tax Band</label>
+              <input type="text" placeholder="e.g. Band C" value={formData.council_tax_band} onChange={(e) => setFormData({...formData, council_tax_band: e.target.value})} className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Heating Type</label>
+              <input type="text" placeholder="e.g. Gas Central Heating" value={formData.heating_type} onChange={(e) => setFormData({...formData, heating_type: e.target.value})} className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tenure</label>
+              <input type="text" placeholder="e.g. Freehold / Leasehold" value={formData.tenure} onChange={(e) => setFormData({...formData, tenure: e.target.value})} className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Minimum Tenancy (Months)</label>
+              <input type="number" placeholder="e.g. 6" value={formData.minimum_tenancy} onChange={(e) => setFormData({...formData, minimum_tenancy: e.target.value})} className={inputClass} />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 space-y-6">
           <h3 className="text-xl font-semibold text-gray-900 border-b border-gray-100 pb-4">Price, Bills & Availability</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
@@ -255,7 +301,7 @@ export default function EditPropertyPage() {
               <input type="text" placeholder="e.g. Fibre Optic" value={formData.broadband_info} onChange={(e) => setFormData({...formData, broadband_info: e.target.value})} className={inputClass} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Availability Status</label>
               <select value={formData.availability_status} onChange={(e) => setFormData({...formData, availability_status: e.target.value})} className={inputClass}>
                 <option value="Available">Available</option>
                 <option value="Let Agreed">Let Agreed</option>
@@ -267,7 +313,7 @@ export default function EditPropertyPage() {
               <input type="date" value={formData.available_from} onChange={(e) => setFormData({...formData, available_from: e.target.value})} className={inputClass} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Min Tenancy</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Min Tenancy Text</label>
               <input type="text" placeholder="e.g. 6 Months" value={formData.preferred_min_tenancy} onChange={(e) => setFormData({...formData, preferred_min_tenancy: e.target.value})} className={inputClass} />
             </div>
           </div>
@@ -330,9 +376,16 @@ export default function EditPropertyPage() {
               {existingImages.map((media) => (
                 <div key={media.id} className="relative w-32 h-32 rounded-xl overflow-hidden border border-gray-200 group">
                   {media.url.match(/\.(mp4|webm|mov)$/i) ? (
-                     <video src={media.url} className="w-full h-full object-cover" />
+                    <video src={media.url} className="w-full h-full object-cover" />
                   ) : (
-                     <img src={media.url} alt="property" className="w-full h-full object-cover" />
+                    <Image
+                      src={media.url}
+                      alt="property"
+                      fill
+                      sizes="128px"
+                      unoptimized
+                      className="w-full h-full object-cover"
+                    />
                   )}
                   <div className="absolute top-1 left-1 bg-black/50 text-white text-[10px] px-2 py-1 rounded">{media.image_type}</div>
                   <button type="button" onClick={() => handleDeleteMedia(media.id, media.url, 'image')} className="absolute inset-0 bg-red-500/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -371,7 +424,7 @@ export default function EditPropertyPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Interior (Photos & Videos)</label>
-                <input type="file" multiple accept="image/*,video/*" onChange={(e) => setNewInteriorFiles(e.target.files)} className={fileInputClass} />
+                <input type="file" multiple accept="image/*,video/*" onChange={(e) => setNewInteriorFiles(e.target.files)} className={fileInputCardClass || fileInputClass} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Exterior (Photos & Videos)</label>
@@ -396,3 +449,5 @@ export default function EditPropertyPage() {
     </div>
   );
 }
+
+const fileInputCardClass = "";

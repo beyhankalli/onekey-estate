@@ -8,12 +8,92 @@ import SiteChrome from "@/components/SiteChrome";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://onekey-estate.vercel.app";
+
 export const metadata: Metadata = {
-  title: "OneKey Estate Agency | Premium Properties in UK",
+  metadataBase: new URL(siteUrl),
+
+  title: {
+    default: "OneKey Estate Agency | Premium Properties in the UK",
+    template: "%s | OneKey Estate Agency",
+  },
+
   description:
-    "Find your perfect rental home. Book viewings online, explore 3D floor plans, and connect with our expert agents.",
-  keywords:
-    "estate agency, uk property, rent a house, online booking, onekey estate",
+    "Find your perfect rental home with OneKey Estate Agency. Explore UK properties, view photos and details, and book property viewings online.",
+
+  keywords: [
+    "OneKey Estate Agency",
+    "estate agency",
+    "UK estate agents",
+    "UK property",
+    "property to rent",
+    "rental properties UK",
+    "houses to rent",
+    "flats to rent",
+    "online property viewings",
+  ],
+
+  applicationName: "OneKey Estate Agency",
+
+  authors: [
+    {
+      name: "OneKey Estate Agency",
+    },
+  ],
+
+  creator: "OneKey Estate Agency",
+  publisher: "OneKey Estate Agency",
+
+  alternates: {
+    canonical: "/",
+  },
+
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+      "max-snippet": -1,
+    },
+  },
+
+  openGraph: {
+    type: "website",
+    locale: "en_GB",
+    url: "/",
+    siteName: "OneKey Estate Agency",
+    title: "OneKey Estate Agency | Premium Properties in the UK",
+    description:
+      "Find your perfect rental home with OneKey Estate Agency. Explore UK properties and book viewings online.",
+    images: [
+      {
+        url: "/onekey-logo.png",
+        width: 1200,
+        height: 630,
+        alt: "OneKey Estate Agency",
+      },
+    ],
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "OneKey Estate Agency | Premium Properties in the UK",
+    description:
+      "Find your perfect rental home with OneKey Estate Agency. Explore UK properties and book viewings online.",
+    images: ["/onekey-logo.png"],
+  },
+
+  icons: {
+    icon: "/onekey-logo.png",
+    apple: "/onekey-logo.png",
+  },
+
+  category: "real estate",
 };
 
 export default function RootLayout({
@@ -22,7 +102,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en-GB">
       <head>
         <Script
           type="module"

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Mail, Phone, MapPin } from "lucide-react";
 
@@ -8,9 +9,12 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-12 mb-16">
           <div className="lg:col-span-3 space-y-6">
             <Link href="/" className="inline-block">
-              <img
+              <Image
                 src="/onekey-logo.png"
                 alt="OneKey Estate Agency Logo"
+                width={200}
+                height={84}
+                sizes="200px"
                 className="h-[84px] w-auto"
               />
             </Link>

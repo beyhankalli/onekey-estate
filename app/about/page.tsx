@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 
 export default function AboutPage() {
@@ -34,9 +35,11 @@ export default function AboutPage() {
           transition={{ delay: 0.2 }}
           className="rounded-[2rem] overflow-hidden relative h-96 flex items-center justify-center"
         >
-          <img 
-            src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80" 
-            alt="OneKey Office" 
+          <Image
+            src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80"
+            alt="OneKey Office"
+            fill
+            sizes="(max-width: 768px) 100vw, 1200px"
             className="absolute inset-0 w-full h-full object-cover"
           />
 

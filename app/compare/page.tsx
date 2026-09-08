@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -308,12 +309,15 @@ export default function ComparePage() {
                       </button>
 
                       <Link href={`/listings/${property.id}`}>
-                        <div className="h-48 rounded-2xl overflow-hidden bg-gray-100 mb-4">
+                        <div className="h-48 rounded-2xl overflow-hidden bg-gray-100 mb-4 relative">
                           {image ? (
-                            <img
+                            <Image
                               src={image}
                               alt={property.title || "Property"}
-                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                              fill
+                              sizes="(max-width: 768px) 100vw, 280px"
+                              unoptimized
+                              className="object-cover hover:scale-105 transition-transform duration-500"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
