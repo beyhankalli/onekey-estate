@@ -1,18 +1,18 @@
-import { 
-  Hero, 
-  FeaturedProperties, 
-  WhyOneKey, 
-  HowItWorks, 
-  AboutPreview, 
-  ReviewsPreview, 
-  FinalCTA 
+import {
+  Hero,
+  WhyOneKey,
+  HowItWorks,
+  AboutPreview,
+  ReviewsPreview,
+  FinalCTA,
 } from "@/components/HomeSections";
+import HomeFeaturedProperties from "@/components/HomeFeaturedProperties";
 
 export default function HomePage() {
   return (
     <main className="flex min-h-screen flex-col">
       <Hero />
-      <FeaturedProperties />
+      <HomeFeaturedProperties />
       <WhyOneKey />
       <HowItWorks />
       <AboutPreview />
