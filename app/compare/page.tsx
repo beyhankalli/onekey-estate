@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -14,6 +13,7 @@ import {
   PawPrint,
   ParkingSquare,
   RotateCcw,
+  Scale,
   Trash2,
   X,
 } from "lucide-react";
@@ -47,6 +47,13 @@ type Property = {
   furnishing_status?: string | null;
   epc_rating?: string | null;
   availability_status?: string | null;
+  council_tax_band?: string | null;
+  heating_type?: string | null;
+  tenure?: string | null;
+  minimum_tenancy?: number | null;
+  virtual_tour_url?: string | null;
+  model_3d_url?: string | null;
+  has_3d_model?: boolean | null;
   property_images?: {
     url: string | null;
     image_type: string | null;
@@ -134,6 +141,13 @@ export default function ComparePage() {
             furnishing_status,
             epc_rating,
             availability_status,
+            council_tax_band,
+            heating_type,
+            tenure,
+            minimum_tenancy,
+            virtual_tour_url,
+            model_3d_url,
+            has_3d_model,
             property_images(
               url,
               image_type,
@@ -173,6 +187,7 @@ export default function ComparePage() {
 
             <div className="mt-10 bg-white rounded-[2rem] border border-gray-100 p-8">
               <div className="h-12 bg-gray-100 rounded-xl" />
+
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[1, 2, 3].map((item) => (
                   <div key={item} className="space-y-4">
@@ -203,7 +218,7 @@ export default function ComparePage() {
 
           <div className="mt-10 bg-white rounded-[2rem] border border-gray-100 shadow-sm p-12 md:p-16 text-center">
             <div className="w-20 h-20 mx-auto rounded-3xl bg-gray-50 flex items-center justify-center mb-6">
-              <Home className="w-10 h-10 text-gray-300" />
+              <Scale className="w-10 h-10 text-gray-300" />
             </div>
 
             <h1 className="text-3xl font-semibold text-gray-900">
@@ -211,8 +226,8 @@ export default function ComparePage() {
             </h1>
 
             <p className="text-gray-500 mt-3 max-w-md mx-auto">
-              Add up to three properties to compare their prices, features
-              and key details side by side.
+              Add up to three properties to compare their prices, features,
+              eligibility and key details side by side.
             </p>
 
             <Link
@@ -249,8 +264,9 @@ export default function ComparePage() {
               Compare Properties
             </h1>
 
-            <p className="text-gray-500 mt-2">
-              Compare up to three properties side by side.
+            <p className="text-gray-500 mt-2 max-w-2xl">
+              Compare up to three properties across price, eligibility,
+              features and viewing options.
             </p>
           </div>
 
@@ -263,6 +279,13 @@ export default function ComparePage() {
           </button>
         </div>
 
+        <div className="mb-5 flex items-center gap-2 text-sm text-gray-500">
+          <Scale className="w-4 h-4 text-[#ae884e]" />
+          <span>
+            {properties.length} {properties.length === 1 ? "property" : "properties"} selected
+          </span>
+        </div>
+
         <div className="bg-white rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
           <div className="overflow-x-auto">
             <div
@@ -271,7 +294,6 @@ export default function ComparePage() {
                 gridTemplateColumns: `220px repeat(${properties.length}, minmax(280px, 1fr))`,
               }}
             >
-              {/* Property headers */}
               <div
                 className="grid border-b border-gray-100"
                 style={{
@@ -309,15 +331,12 @@ export default function ComparePage() {
                       </button>
 
                       <Link href={`/listings/${property.id}`}>
-                        <div className="h-48 rounded-2xl overflow-hidden bg-gray-100 mb-4 relative">
+                        <div className="h-48 rounded-2xl overflow-hidden bg-gray-100 mb-4">
                           {image ? (
-                            <Image
+                            <img
                               src={image}
                               alt={property.title || "Property"}
-                              fill
-                              sizes="(max-width: 768px) 100vw, 280px"
-                              unoptimized
-                              className="object-cover hover:scale-105 transition-transform duration-500"
+                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
@@ -356,8 +375,7 @@ export default function ComparePage() {
                 })}
               </div>
 
-              {/* Price */}
-              <ComparisonRow label="Monthly Rent" properties={properties}>
+              <ComparisonRow label="Monthly Rent" properties={properties} highlightDifferences>
                 {(property) => (
                   <span className="text-xl font-semibold text-[#ae884e]">
                     {formatPrice(property.monthly_rent)}
@@ -385,7 +403,7 @@ export default function ComparePage() {
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Bedrooms" properties={properties}>
+              <ComparisonRow label="Bedrooms" properties={properties} highlightDifferences>
                 {(property) => (
                   <span className="inline-flex items-center gap-2 font-medium text-gray-900">
                     <Bed className="w-4 h-4 text-[#ae884e]" />
@@ -394,7 +412,7 @@ export default function ComparePage() {
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Bathrooms" properties={properties}>
+              <ComparisonRow label="Bathrooms" properties={properties} highlightDifferences>
                 {(property) => (
                   <span className="inline-flex items-center gap-2 font-medium text-gray-900">
                     <Bath className="w-4 h-4 text-[#ae884e]" />
@@ -403,31 +421,53 @@ export default function ComparePage() {
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Available From" properties={properties}>
+              <ComparisonRow label="Available From" properties={properties} highlightDifferences>
                 {(property) => (
                   <span>{property.available_from || "—"}</span>
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Minimum Tenancy" properties={properties}>
+              <ComparisonRow label="Minimum Tenancy" properties={properties} highlightDifferences>
                 {(property) => (
-                  <span>{property.preferred_min_tenancy || "—"}</span>
+                  <span>
+                    {property.minimum_tenancy != null
+                      ? `${property.minimum_tenancy} months`
+                      : property.preferred_min_tenancy || "—"}
+                  </span>
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Furnishing" properties={properties}>
+              <ComparisonRow label="Furnishing" properties={properties} highlightDifferences>
                 {(property) => (
                   <span>{property.furnishing_status || "—"}</span>
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="EPC Rating" properties={properties}>
+              <ComparisonRow label="EPC Rating" properties={properties} highlightDifferences>
                 {(property) => (
                   <span>{property.epc_rating || "—"}</span>
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Bills Included" properties={properties}>
+              <ComparisonRow label="Council Tax Band" properties={properties} highlightDifferences>
+                {(property) => (
+                  <span>{property.council_tax_band || "—"}</span>
+                )}
+              </ComparisonRow>
+
+              <ComparisonRow label="Heating" properties={properties} highlightDifferences>
+                {(property) => (
+                  <span>{property.heating_type || "—"}</span>
+                )}
+              </ComparisonRow>
+
+              <ComparisonRow label="Tenure" properties={properties} highlightDifferences>
+                {(property) => (
+                  <span>{property.tenure || "—"}</span>
+                )}
+              </ComparisonRow>
+
+              <ComparisonRow label="Bills Included" properties={properties} highlightDifferences>
                 {(property) => (
                   <BooleanValue value={property.bills_included} />
                 )}
@@ -436,25 +476,26 @@ export default function ComparePage() {
               <ComparisonRow
                 label="DSS / LHA Considered"
                 properties={properties}
+                highlightDifferences
               >
                 {(property) => (
                   <BooleanValue value={property.dss_lha_covers_rent} />
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Students" properties={properties}>
+              <ComparisonRow label="Students" properties={properties} highlightDifferences>
                 {(property) => (
                   <BooleanValue value={property.student_friendly} />
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Families" properties={properties}>
+              <ComparisonRow label="Families" properties={properties} highlightDifferences>
                 {(property) => (
                   <BooleanValue value={property.families_allowed} />
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Pets" properties={properties}>
+              <ComparisonRow label="Pets" properties={properties} highlightDifferences>
                 {(property) => (
                   <span className="inline-flex items-center gap-2">
                     <PawPrint
@@ -475,13 +516,13 @@ export default function ComparePage() {
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Garden" properties={properties}>
+              <ComparisonRow label="Garden" properties={properties} highlightDifferences>
                 {(property) => (
                   <BooleanValue value={property.garden} />
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Parking" properties={properties}>
+              <ComparisonRow label="Parking" properties={properties} highlightDifferences>
                 {(property) => (
                   <span className="inline-flex items-center gap-2">
                     <ParkingSquare
@@ -502,10 +543,37 @@ export default function ComparePage() {
                 )}
               </ComparisonRow>
 
-              <ComparisonRow label="Online Viewings" properties={properties}>
+              <ComparisonRow label="Online Viewings" properties={properties} highlightDifferences>
                 {(property) => (
                   <BooleanValue value={property.online_viewings} />
                 )}
+              </ComparisonRow>
+
+              <ComparisonRow label="3D Model" properties={properties} highlightDifferences>
+                {(property) => (
+                  <BooleanValue
+                    value={Boolean(
+                      property.model_3d_url && property.has_3d_model
+                    )}
+                  />
+                )}
+              </ComparisonRow>
+
+              <ComparisonRow label="Virtual Tour" properties={properties} highlightDifferences>
+                {(property) =>
+                  property.virtual_tour_url ? (
+                    <a
+                      href={property.virtual_tour_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#1c3053] hover:text-[#ae884e] font-semibold underline underline-offset-2"
+                    >
+                      Open tour
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">Not available</span>
+                  )
+                }
               </ComparisonRow>
 
               <ComparisonRow label="Broadband" properties={properties}>
@@ -514,7 +582,6 @@ export default function ComparePage() {
                 )}
               </ComparisonRow>
 
-              {/* CTA */}
               <div
                 className="grid border-t border-gray-100"
                 style={{
@@ -555,11 +622,30 @@ function ComparisonRow({
   label,
   properties,
   children,
+  highlightDifferences = false,
 }: {
   label: string;
   properties: Property[];
   children: (property: Property) => React.ReactNode;
+  highlightDifferences?: boolean;
 }) {
+  const comparableValues = properties.map((property) => {
+    const raw = (property as Record<string, unknown>)[labelToKey(label)];
+
+    if (typeof raw === "boolean") {
+      return raw ? "yes" : "no";
+    }
+
+    if (raw === null || raw === undefined || raw === "") {
+      return "—";
+    }
+
+    return String(raw);
+  });
+
+  const hasDifference =
+    highlightDifferences && new Set(comparableValues).size > 1;
+
   return (
     <div
       className="grid border-b border-gray-100"
@@ -567,18 +653,65 @@ function ComparisonRow({
         gridTemplateColumns: `220px repeat(${properties.length}, minmax(280px, 1fr))`,
       }}
     >
-      <div className="p-5 bg-gray-50 flex items-center">
-        <span className="text-sm font-medium text-gray-600">{label}</span>
+      <div
+        className={`p-5 flex items-center ${
+          hasDifference ? "bg-[#fffaf2]" : "bg-gray-50"
+        }`}
+      >
+        <span
+          className={`text-sm font-medium ${
+            hasDifference ? "text-[#8f6e3c]" : "text-gray-600"
+          }`}
+        >
+          {label}
+        </span>
       </div>
 
-      {properties.map((property) => (
+      {properties.map((property, index) => (
         <div
           key={property.id}
-          className="p-5 border-l border-gray-100 text-sm text-gray-700 flex items-center min-h-[64px]"
+          className={`p-5 border-l border-gray-100 text-sm text-gray-700 flex items-center min-h-[64px] ${
+            hasDifference ? "bg-[#fffdf8]" : ""
+          }`}
         >
-          {children(property)}
+          <div className="flex items-center gap-2 w-full">
+            {children(property)}
+
+            {hasDifference && index === 0 && (
+              <span className="ml-auto text-[10px] uppercase tracking-wide text-[#ae884e] font-bold">
+                Different
+              </span>
+            )}
+          </div>
         </div>
       ))}
     </div>
   );
+}
+
+function labelToKey(label: string) {
+  const map: Record<string, string> = {
+    "Monthly Rent": "monthly_rent",
+    Bedrooms: "bedrooms",
+    Bathrooms: "bathrooms",
+    "Available From": "available_from",
+    Furnishing: "furnishing_status",
+    "EPC Rating": "epc_rating",
+    "Bills Included": "bills_included",
+    "DSS / LHA Considered": "dss_lha_covers_rent",
+    Students: "student_friendly",
+    Families: "families_allowed",
+    Pets: "pets_allowed",
+    Garden: "garden",
+    Parking: "parking",
+    "Online Viewings": "online_viewings",
+    "Council Tax Band": "council_tax_band",
+    Heating: "heating_type",
+    Tenure: "tenure",
+    "Minimum Tenancy": "minimum_tenancy",
+    "3D Model": "model_3d_url",
+    "Virtual Tour": "virtual_tour_url",
+  };
+
+  return map[label] || label;
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   MapPin,
@@ -24,10 +23,12 @@ import {
   Bookmark,
   Trash2,
   Check,
+  Scale,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useWishlist } from "@/context/WishlistContext";
+import { useCompare } from "@/context/CompareContext";
 
 type PropertyImage = {
   url: string | null;
@@ -89,29 +90,9 @@ type SearchFilters = {
 const SAVED_SEARCHES_KEY = "onekey_saved_searches";
 const MAX_SAVED_SEARCHES = 10;
 
-const PROPERTY_SELECT = `
-  id,
-  title,
-  property_ref,
-  short_location,
-  full_address,
-  postcode,
-  monthly_rent,
-  bedrooms,
-  bathrooms,
-  availability_status,
-  pets_allowed,
-  garden,
-  parking,
-  student_friendly,
-  families_allowed,
-  dss_lha_covers_rent,
-  created_at,
-  property_images(url, image_type)
-`;
-
 export default function PublicListingsPage() {
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { compareIds, toggleCompare, canAddMore } = useCompare();
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,15 +107,12 @@ export default function PublicListingsPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
-
   const [minPrice, setMinPrice] = useState<number | "">("");
   const [maxPrice, setMaxPrice] = useState<number | "">("");
-
   const [minBeds, setMinBeds] = useState<number | "">("");
   const [maxBeds, setMaxBeds] = useState<number | "">("");
   const [minBaths, setMinBaths] = useState<number | "">("");
-
-  const [availableOnly, setAvailableOnly] = useState(true);
+  const [availableOnly, setAvailableOnly] = useState(false);
   const [petsAllowed, setPetsAllowed] = useState(false);
   const [garden, setGarden] = useState(false);
   const [parking, setParking] = useState(false);
@@ -144,25 +122,50 @@ export default function PublicListingsPage() {
 
   useEffect(() => {
     async function fetchProperties() {
-      const supabase = createClient();
+      try {
+        setLoading(true);
+        setError("");
 
-      setLoading(true);
-      setError("");
+        const supabase = createClient();
 
-      const { data, error: fetchError } = await supabase
-        .from("properties")
-        .select(PROPERTY_SELECT)
-        .order("created_at", { ascending: false });
+        const { data, error: queryError } = await supabase
+          .from("properties")
+          .select(
+            `
+              id,
+              title,
+              property_ref,
+              short_location,
+              full_address,
+              postcode,
+              monthly_rent,
+              bedrooms,
+              bathrooms,
+              availability_status,
+              pets_allowed,
+              garden,
+              parking,
+              student_friendly,
+              families_allowed,
+              dss_lha_covers_rent,
+              created_at,
+              property_images(
+                url,
+                image_type
+              )
+            `
+          )
+          .order("created_at", { ascending: false });
 
-      if (fetchError) {
-        console.error("Error fetching properties:", fetchError);
-        setError("Unable to load properties. Please try again later.");
-        setProperties([]);
-      } else {
+        if (queryError) throw queryError;
+
         setProperties((data as Property[]) || []);
+      } catch (err: any) {
+        console.error("Error fetching properties:", err);
+        setError(err?.message || "Unable to load properties.");
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     }
 
     fetchProperties();
@@ -170,165 +173,122 @@ export default function PublicListingsPage() {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(SAVED_SEARCHES_KEY);
+      const stored = localStorage.getItem(SAVED_SEARCHES_KEY);
 
-      if (!stored) return;
+      if (stored) {
+        const parsed = JSON.parse(stored);
 
-      const parsed = JSON.parse(stored);
-
-      if (Array.isArray(parsed)) {
-        setSavedSearches(parsed.slice(0, MAX_SAVED_SEARCHES));
+        if (Array.isArray(parsed)) {
+          setSavedSearches(parsed.slice(0, MAX_SAVED_SEARCHES));
+        }
       }
-    } catch (error) {
-      console.error("Failed to load saved searches:", error);
+    } catch (err) {
+      console.error("Failed to load saved searches:", err);
     }
   }, []);
 
-  const currentFilters = useMemo<SearchFilters>(
-    () => ({
-      searchTerm,
-      sortOrder,
-      minPrice,
-      maxPrice,
-      minBeds,
-      maxBeds,
-      minBaths,
-      availableOnly,
-      petsAllowed,
-      garden,
-      parking,
-      studentFriendly,
-      familiesAllowed,
-      dssAllowed,
-    }),
-    [
-      searchTerm,
-      sortOrder,
-      minPrice,
-      maxPrice,
-      minBeds,
-      maxBeds,
-      minBaths,
-      availableOnly,
-      petsAllowed,
-      garden,
-      parking,
-      studentFriendly,
-      familiesAllowed,
-      dssAllowed,
-    ]
-  );
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        SAVED_SEARCHES_KEY,
+        JSON.stringify(savedSearches)
+      );
+    } catch (err) {
+      console.error("Failed to save searches:", err);
+    }
+  }, [savedSearches]);
 
   const filteredProperties = useMemo(() => {
-    let result = [...properties];
+    const query = searchTerm.trim().toLowerCase();
 
-    const term = searchTerm.trim().toLowerCase();
+    const result = properties.filter((property) => {
+      const searchableText = [
+        property.title,
+        property.property_ref,
+        property.short_location,
+        property.full_address,
+        property.postcode,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
-    if (term) {
-      result = result.filter((property) => {
-        const searchableText = [
-          property.title,
-          property.short_location,
-          property.full_address,
-          property.postcode,
-          property.property_ref,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
+      if (query && !searchableText.includes(query)) {
+        return false;
+      }
 
-        return searchableText.includes(term);
-      });
-    }
+      if (
+        minPrice !== "" &&
+        (property.monthly_rent === null ||
+          property.monthly_rent < Number(minPrice))
+      ) {
+        return false;
+      }
 
-    if (minPrice !== "") {
-      result = result.filter(
-        (property) =>
-          property.monthly_rent !== null &&
-          property.monthly_rent >= minPrice
-      );
-    }
+      if (
+        maxPrice !== "" &&
+        (property.monthly_rent === null ||
+          property.monthly_rent > Number(maxPrice))
+      ) {
+        return false;
+      }
 
-    if (maxPrice !== "") {
-      result = result.filter(
-        (property) =>
-          property.monthly_rent !== null &&
-          property.monthly_rent <= maxPrice
-      );
-    }
+      if (
+        minBeds !== "" &&
+        (property.bedrooms === null ||
+          property.bedrooms < Number(minBeds))
+      ) {
+        return false;
+      }
 
-    if (minBeds !== "") {
-      result = result.filter(
-        (property) =>
-          property.bedrooms !== null && property.bedrooms >= minBeds
-      );
-    }
+      if (
+        maxBeds !== "" &&
+        (property.bedrooms === null ||
+          property.bedrooms > Number(maxBeds))
+      ) {
+        return false;
+      }
 
-    if (maxBeds !== "") {
-      result = result.filter(
-        (property) =>
-          property.bedrooms !== null && property.bedrooms <= maxBeds
-      );
-    }
+      if (
+        minBaths !== "" &&
+        (property.bathrooms === null ||
+          property.bathrooms < Number(minBaths))
+      ) {
+        return false;
+      }
 
-    if (minBaths !== "") {
-      result = result.filter(
-        (property) =>
-          property.bathrooms !== null && property.bathrooms >= minBaths
-      );
-    }
+      if (
+        availableOnly &&
+        property.availability_status?.toLowerCase() !== "available"
+      ) {
+        return false;
+      }
 
-    if (availableOnly) {
-      result = result.filter(
-        (property) => property.availability_status === "Available"
-      );
-    }
+      if (petsAllowed && !property.pets_allowed) return false;
+      if (garden && !property.garden) return false;
+      if (parking && !property.parking) return false;
+      if (studentFriendly && !property.student_friendly) return false;
+      if (familiesAllowed && !property.families_allowed) return false;
+      if (dssAllowed && !property.dss_lha_covers_rent) return false;
 
-    if (petsAllowed) {
-      result = result.filter((property) => property.pets_allowed === true);
-    }
+      return true;
+    });
 
-    if (garden) {
-      result = result.filter((property) => property.garden === true);
-    }
-
-    if (parking) {
-      result = result.filter((property) => property.parking === true);
-    }
-
-    if (studentFriendly) {
-      result = result.filter(
-        (property) => property.student_friendly === true
-      );
-    }
-
-    if (familiesAllowed) {
-      result = result.filter(
-        (property) => property.families_allowed === true
-      );
-    }
-
-    if (dssAllowed) {
-      result = result.filter(
-        (property) => property.dss_lha_covers_rent === true
-      );
-    }
-
-    result.sort((a, b) => {
+    return [...result].sort((a, b) => {
       if (sortOrder === "price-asc") {
-        return (a.monthly_rent || 0) - (b.monthly_rent || 0);
+        return (a.monthly_rent ?? Infinity) - (b.monthly_rent ?? Infinity);
       }
 
       if (sortOrder === "price-desc") {
-        return (b.monthly_rent || 0) - (a.monthly_rent || 0);
+        return (b.monthly_rent ?? -Infinity) - (a.monthly_rent ?? -Infinity);
       }
 
       if (sortOrder === "beds-desc") {
-        return (b.bedrooms || 0) - (a.bedrooms || 0);
+        return (b.bedrooms ?? -Infinity) - (a.bedrooms ?? -Infinity);
       }
 
       if (sortOrder === "beds-asc") {
-        return (a.bedrooms || 0) - (b.bedrooms || 0);
+        return (a.bedrooms ?? Infinity) - (b.bedrooms ?? Infinity);
       }
 
       return (
@@ -336,11 +296,10 @@ export default function PublicListingsPage() {
         new Date(a.created_at || 0).getTime()
       );
     });
-
-    return result;
   }, [
     properties,
     searchTerm,
+    sortOrder,
     minPrice,
     maxPrice,
     minBeds,
@@ -353,33 +312,14 @@ export default function PublicListingsPage() {
     studentFriendly,
     familiesAllowed,
     dssAllowed,
-    sortOrder,
   ]);
 
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-
-    if (minPrice !== "") count++;
-    if (maxPrice !== "") count++;
-    if (minBeds !== "") count++;
-    if (maxBeds !== "") count++;
-    if (minBaths !== "") count++;
-    if (!availableOnly) count++;
-    if (petsAllowed) count++;
-    if (garden) count++;
-    if (parking) count++;
-    if (studentFriendly) count++;
-    if (familiesAllowed) count++;
-    if (dssAllowed) count++;
-    if (sortOrder !== "newest") count++;
-
-    return count;
-  }, [
-    minPrice,
-    maxPrice,
-    minBeds,
-    maxBeds,
-    minBaths,
+  const activeFilterCount = [
+    minPrice !== "",
+    maxPrice !== "",
+    minBeds !== "",
+    maxBeds !== "",
+    minBaths !== "",
     availableOnly,
     petsAllowed,
     garden,
@@ -387,50 +327,62 @@ export default function PublicListingsPage() {
     studentFriendly,
     familiesAllowed,
     dssAllowed,
-    sortOrder,
-  ]);
+  ].filter(Boolean).length;
 
   const hasAnyFilter =
-    searchTerm.trim() !== "" || activeFilterCount > 0;
+    Boolean(searchTerm.trim()) || activeFilterCount > 0;
 
   const clearFilters = () => {
     setSearchTerm("");
+    setSortOrder("newest");
     setMinPrice("");
     setMaxPrice("");
     setMinBeds("");
     setMaxBeds("");
     setMinBaths("");
-    setAvailableOnly(true);
+    setAvailableOnly(false);
     setPetsAllowed(false);
     setGarden(false);
     setParking(false);
     setStudentFriendly(false);
     setFamiliesAllowed(false);
     setDssAllowed(false);
-    setSortOrder("newest");
   };
 
-  const applySavedSearch = (savedSearch: SavedSearch) => {
-    const filters = savedSearch.filters;
+  const getCurrentFilters = (): SearchFilters => ({
+    searchTerm,
+    sortOrder,
+    minPrice,
+    maxPrice,
+    minBeds,
+    maxBeds,
+    minBaths,
+    availableOnly,
+    petsAllowed,
+    garden,
+    parking,
+    studentFriendly,
+    familiesAllowed,
+    dssAllowed,
+  });
 
-    setSearchTerm(filters.searchTerm || "");
-    setSortOrder(filters.sortOrder || "newest");
-    setMinPrice(filters.minPrice ?? "");
-    setMaxPrice(filters.maxPrice ?? "");
-    setMinBeds(filters.minBeds ?? "");
-    setMaxBeds(filters.maxBeds ?? "");
-    setMinBaths(filters.minBaths ?? "");
-    setAvailableOnly(filters.availableOnly ?? true);
-    setPetsAllowed(filters.petsAllowed ?? false);
-    setGarden(filters.garden ?? false);
-    setParking(filters.parking ?? false);
-    setStudentFriendly(filters.studentFriendly ?? false);
-    setFamiliesAllowed(filters.familiesAllowed ?? false);
-    setDssAllowed(filters.dssAllowed ?? false);
-
+  const applyFilters = (filters: SearchFilters) => {
+    setSearchTerm(filters.searchTerm);
+    setSortOrder(filters.sortOrder);
+    setMinPrice(filters.minPrice);
+    setMaxPrice(filters.maxPrice);
+    setMinBeds(filters.minBeds);
+    setMaxBeds(filters.maxBeds);
+    setMinBaths(filters.minBaths);
+    setAvailableOnly(filters.availableOnly);
+    setPetsAllowed(filters.petsAllowed);
+    setGarden(filters.garden);
+    setParking(filters.parking);
+    setStudentFriendly(filters.studentFriendly);
+    setFamiliesAllowed(filters.familiesAllowed);
+    setDssAllowed(filters.dssAllowed);
     setIsSavedSearchesOpen(false);
-    setSaveMessage(`Applied "${savedSearch.name}"`);
-    setTimeout(() => setSaveMessage(""), 2500);
+    setSaveMessage("Saved search applied.");
   };
 
   const saveCurrentSearch = () => {
@@ -442,20 +394,7 @@ export default function PublicListingsPage() {
     }
 
     if (savedSearches.length >= MAX_SAVED_SEARCHES) {
-      setSaveMessage(
-        `You can save up to ${MAX_SAVED_SEARCHES} searches. Delete one first.`
-      );
-      return;
-    }
-
-    const duplicate = savedSearches.some(
-      (savedSearch) =>
-        JSON.stringify(savedSearch.filters) ===
-        JSON.stringify(currentFilters)
-    );
-
-    if (duplicate) {
-      setSaveMessage("This search is already saved.");
+      setSaveMessage(`You can save up to ${MAX_SAVED_SEARCHES} searches.`);
       return;
     }
 
@@ -463,114 +402,42 @@ export default function PublicListingsPage() {
       id: crypto.randomUUID(),
       name,
       createdAt: new Date().toISOString(),
-      filters: currentFilters,
+      filters: getCurrentFilters(),
     };
 
-    const updated = [newSearch, ...savedSearches];
-
-    try {
-      window.localStorage.setItem(
-        SAVED_SEARCHES_KEY,
-        JSON.stringify(updated)
-      );
-
-      setSavedSearches(updated);
-      setSaveSearchName("");
-      setIsSavedSearchOpen(false);
-      setSaveMessage(`"${name}" has been saved.`);
-      setTimeout(() => setSaveMessage(""), 2500);
-    } catch (error) {
-      console.error("Failed to save search:", error);
-      setSaveMessage("Unable to save this search on your device.");
-    }
+    setSavedSearches((current) => [newSearch, ...current]);
+    setSaveSearchName("");
+    setIsSavedSearchOpen(false);
+    setSaveMessage("Search saved successfully.");
   };
 
   const deleteSavedSearch = (id: string) => {
-    const updated = savedSearches.filter(
-      (savedSearch) => savedSearch.id !== id
+    setSavedSearches((current) =>
+      current.filter((search) => search.id !== id)
     );
-
-    try {
-      window.localStorage.setItem(
-        SAVED_SEARCHES_KEY,
-        JSON.stringify(updated)
-      );
-
-      setSavedSearches(updated);
-    } catch (error) {
-      console.error("Failed to delete saved search:", error);
-    }
-  };
-
-  const getSavedSearchSummary = (filters: SearchFilters) => {
-    const summary: string[] = [];
-
-    if (filters.searchTerm.trim()) {
-      summary.push(filters.searchTerm.trim());
-    }
-
-    if (filters.minPrice !== "") {
-      summary.push(`£${filters.minPrice}+`);
-    }
-
-    if (filters.maxPrice !== "") {
-      summary.push(`up to £${filters.maxPrice}`);
-    }
-
-    if (filters.minBeds !== "") {
-      summary.push(`${filters.minBeds}+ beds`);
-    }
-
-    if (filters.maxBeds !== "") {
-      summary.push(`up to ${filters.maxBeds} beds`);
-    }
-
-    if (filters.minBaths !== "") {
-      summary.push(`${filters.minBaths}+ baths`);
-    }
-
-    if (filters.petsAllowed) summary.push("Pets");
-    if (filters.garden) summary.push("Garden");
-    if (filters.parking) summary.push("Parking");
-    if (filters.studentFriendly) summary.push("Students");
-    if (filters.familiesAllowed) summary.push("Families");
-    if (filters.dssAllowed) summary.push("DSS/LHA");
-
-    if (filters.availableOnly) {
-      summary.push("Available");
-    }
-
-    return summary.length > 0
-      ? summary.slice(0, 4).join(" · ")
-      : "All properties";
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 pt-32 pb-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="animate-pulse">
-            <div className="h-10 w-72 bg-gray-200 rounded-xl" />
-            <div className="h-5 w-96 max-w-full bg-gray-100 rounded-lg mt-3" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 animate-pulse">
+          <div className="h-10 w-64 bg-gray-200 rounded-xl mb-4" />
+          <div className="h-5 w-96 max-w-full bg-gray-200 rounded-lg mb-10" />
 
-            <div className="mt-8 h-14 bg-white border border-gray-100 rounded-2xl" />
-
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {[1, 2, 3, 4, 5, 6].map((item) => (
-                <div
-                  key={item}
-                  className="bg-white rounded-[2rem] overflow-hidden border border-gray-100"
-                >
-                  <div className="h-64 bg-gray-200" />
-                  <div className="p-6 space-y-4">
-                    <div className="h-7 w-32 bg-gray-100 rounded" />
-                    <div className="h-5 w-3/4 bg-gray-100 rounded" />
-                    <div className="h-4 w-1/2 bg-gray-100 rounded" />
-                    <div className="h-10 bg-gray-100 rounded" />
-                  </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[1, 2, 3, 4, 5, 6].map((item) => (
+              <div
+                key={item}
+                className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm"
+              >
+                <div className="h-56 bg-gray-200" />
+                <div className="p-6 space-y-4">
+                  <div className="h-6 w-3/4 bg-gray-200 rounded" />
+                  <div className="h-4 w-1/2 bg-gray-200 rounded" />
+                  <div className="h-8 w-1/3 bg-gray-200 rounded" />
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -578,37 +445,23 @@ export default function PublicListingsPage() {
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen pt-28 pb-20 relative">
+    <div className="min-h-screen bg-gray-50 pt-32 pb-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-            <div>
-              <p className="text-sm font-medium text-[#ae884e] mb-2">
-                OneKey Estate Agency
-              </p>
+        <div className="mb-10">
+          <p className="text-sm font-medium text-[#ae884e] mb-2">
+            OneKey Estate Agency
+          </p>
 
-              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 tracking-tight">
-                Discover Properties
-              </h1>
+          <h1 className="text-4xl md:text-5xl font-semibold text-gray-900 tracking-tight">
+            Find Your Next Home
+          </h1>
 
-              <p className="text-gray-500 font-light mt-2">
-                Find your perfect home from our premium selection.
-              </p>
-            </div>
-
-            <div className="text-sm text-gray-500">
-              <span className="font-semibold text-gray-900">
-                {filteredProperties.length}
-              </span>{" "}
-              {filteredProperties.length === 1
-                ? "property"
-                : "properties"}{" "}
-              found
-            </div>
-          </div>
+          <p className="text-gray-500 font-light mt-3 max-w-2xl">
+            Browse our available properties and compare the homes that best
+            match your requirements.
+          </p>
         </div>
 
-        {/* Search controls */}
         <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-8">
           <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
@@ -661,7 +514,6 @@ export default function PublicListingsPage() {
           </div>
         </div>
 
-        {/* Save/apply message */}
         <AnimatePresence>
           {saveMessage && (
             <motion.div
@@ -676,7 +528,6 @@ export default function PublicListingsPage() {
           )}
         </AnimatePresence>
 
-        {/* Active filters */}
         {hasAnyFilter && (
           <div className="mb-6 flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-gray-500 mr-1">
@@ -769,7 +620,6 @@ export default function PublicListingsPage() {
           </div>
         )}
 
-        {/* Results */}
         <div className="mb-6 flex items-center justify-between gap-4">
           <p className="text-sm text-gray-500 font-medium">
             Showing{" "}
@@ -789,12 +639,12 @@ export default function PublicListingsPage() {
             {sortOrder === "newest"
               ? "Newest"
               : sortOrder === "price-asc"
-                ? "Lowest price"
-                : sortOrder === "price-desc"
-                  ? "Highest price"
-                  : sortOrder === "beds-desc"
-                    ? "Most bedrooms"
-                    : "Fewest bedrooms"}
+              ? "Lowest price"
+              : sortOrder === "price-desc"
+              ? "Highest price"
+              : sortOrder === "beds-desc"
+              ? "Most bedrooms"
+              : "Fewest bedrooms"}
           </button>
         </div>
 
@@ -832,16 +682,16 @@ export default function PublicListingsPage() {
             {filteredProperties.map((property) => {
               const thumbnail =
                 property.property_images?.find(
-                  (img) => img.image_type === "exterior" && img.url
+                  (img) => img.image_type === "exterior"
                 )?.url ||
                 property.property_images?.find(
-                  (img) => img.image_type === "main" && img.url
+                  (img) => img.image_type === "main"
                 )?.url ||
-                property.property_images?.find((img) => Boolean(img.url))
-                  ?.url ||
-                null;
+                property.property_images?.[0]?.url ||
+                "https://via.placeholder.com/600x400?text=No+Image";
 
               const isSaved = isInWishlist(property.id);
+              const isCompared = compareIds.includes(property.id);
 
               return (
                 <div
@@ -849,20 +699,11 @@ export default function PublicListingsPage() {
                   className="bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] group flex flex-col transition-all hover:-translate-y-1 hover:shadow-[0_16px_40px_rgb(0,0,0,0.08)]"
                 >
                   <div className="relative h-64 overflow-hidden bg-gray-100">
-                    {thumbnail ? (
-                      <Image
-                        src={thumbnail}
-                        alt={property.title || "Property"}
-                        fill
-                        sizes="(max-width: 767px) 100vw, (max-width: 1023px) 50vw, 33vw"
-                        quality={75}
-                        className="object-cover transition-transform duration-700 group-hover:scale-110"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                        <HomeIcon className="w-12 h-12 text-gray-300" />
-                      </div>
-                    )}
+                    <img
+                      src={thumbnail}
+                      alt={property.title || "Property"}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    />
 
                     <div className="absolute top-4 left-4">
                       <span
@@ -894,6 +735,34 @@ export default function PublicListingsPage() {
                           isSaved ? "text-red-500" : "text-gray-400"
                         }`}
                       />
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+
+                        if (!isCompared && !canAddMore) {
+                          window.alert(
+                            "You can compare up to 3 properties at a time."
+                          );
+                          return;
+                        }
+
+                        toggleCompare(property.id);
+                      }}
+                      aria-label={
+                        isCompared
+                          ? "Remove property from comparison"
+                          : "Add property to comparison"
+                      }
+                      className={`absolute bottom-4 right-4 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold shadow-md backdrop-blur-sm transition-all ${
+                        isCompared
+                          ? "bg-[#1c3053] text-white"
+                          : "bg-white/95 text-gray-700 hover:bg-[#1c3053] hover:text-white"
+                      }`}
+                    >
+                      <Scale className="w-4 h-4" />
+                      {isCompared ? "Comparing" : "Compare"}
                     </button>
                   </div>
 
@@ -972,9 +841,50 @@ export default function PublicListingsPage() {
             })}
           </div>
         )}
+
+        {compareIds.length > 0 && (
+          <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-3xl">
+            <div className="bg-[#1c3053] text-white rounded-2xl shadow-2xl border border-white/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                  <Scale className="w-5 h-5" />
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {compareIds.length} of 3 properties selected
+                  </p>
+
+                  <p className="text-xs text-white/70 truncate">
+                    Select up to three properties to compare side by side.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 sm:shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    compareIds.forEach((id) => toggleCompare(id));
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-sm font-medium transition-colors"
+                >
+                  Clear
+                </button>
+
+                <Link
+                  href="/compare"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#ae884e] hover:bg-[#c09a62] text-white text-sm font-semibold transition-colors"
+                >
+                  Compare now
+                  <Scale className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Filter Sidebar */}
       <AnimatePresence>
         {isFilterOpen && (
           <>
@@ -1033,12 +943,8 @@ export default function PublicListingsPage() {
                       className="appearance-none w-full p-3.5 pr-10 rounded-xl border border-gray-200 text-gray-900 bg-white outline-none focus:border-[#ae884e] focus:ring-1 focus:ring-[#ae884e]/20"
                     >
                       <option value="newest">Newest First</option>
-                      <option value="price-asc">
-                        Price: Low to High
-                      </option>
-                      <option value="price-desc">
-                        Price: High to Low
-                      </option>
+                      <option value="price-asc">Price: Low to High</option>
+                      <option value="price-desc">Price: High to Low</option>
                       <option value="beds-desc">Most Bedrooms</option>
                       <option value="beds-asc">Fewest Bedrooms</option>
                     </select>
@@ -1047,252 +953,101 @@ export default function PublicListingsPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-gray-100 p-5">
-                  <label className="flex items-center justify-between gap-3 cursor-pointer">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        Available Properties
-                      </p>
+                <FilterNumber
+                  label="Minimum Price"
+                  value={minPrice}
+                  setValue={setMinPrice}
+                  prefix="£"
+                />
 
-                      <p className="text-xs text-gray-500 mt-1">
-                        Only show properties currently available
-                      </p>
-                    </div>
+                <FilterNumber
+                  label="Maximum Price"
+                  value={maxPrice}
+                  setValue={setMaxPrice}
+                  prefix="£"
+                />
 
-                    <input
-                      type="checkbox"
-                      checked={availableOnly}
-                      onChange={(e) =>
-                        setAvailableOnly(e.target.checked)
-                      }
-                      className="w-5 h-5 accent-[#ae884e] rounded border-gray-300 shrink-0"
-                    />
-                  </label>
-                </div>
+                <FilterNumber
+                  label="Minimum Bedrooms"
+                  value={minBeds}
+                  setValue={setMinBeds}
+                />
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-3">
-                    Budget
-                  </label>
+                <FilterNumber
+                  label="Maximum Bedrooms"
+                  value={maxBeds}
+                  setValue={setMaxBeds}
+                />
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                        Minimum Rent
-                      </label>
+                <FilterNumber
+                  label="Minimum Bathrooms"
+                  value={minBaths}
+                  setValue={setMinBaths}
+                />
 
-                      <select
-                        value={minPrice}
-                        onChange={(e) =>
-                          setMinPrice(
-                            e.target.value ? Number(e.target.value) : ""
-                          )
-                        }
-                        className="w-full p-3 rounded-xl border border-gray-200 text-gray-900 bg-white outline-none focus:border-[#ae884e]"
-                      >
-                        <option value="">No minimum</option>
-                        <option value="500">£500</option>
-                        <option value="750">£750</option>
-                        <option value="1000">£1,000</option>
-                        <option value="1250">£1,250</option>
-                        <option value="1500">£1,500</option>
-                        <option value="2000">£2,000</option>
-                        <option value="2500">£2,500</option>
-                        <option value="3000">£3,000</option>
-                      </select>
-                    </div>
+                <ToggleFilter
+                  title="Available Properties"
+                  description="Only show properties currently available"
+                  checked={availableOnly}
+                  onChange={setAvailableOnly}
+                />
 
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                        Maximum Rent
-                      </label>
+                <ToggleFilter
+                  title="Pets Allowed"
+                  description="Show homes that allow pets"
+                  checked={petsAllowed}
+                  onChange={setPetsAllowed}
+                />
 
-                      <select
-                        value={maxPrice}
-                        onChange={(e) =>
-                          setMaxPrice(
-                            e.target.value ? Number(e.target.value) : ""
-                          )
-                        }
-                        className="w-full p-3 rounded-xl border border-gray-200 text-gray-900 bg-white outline-none focus:border-[#ae884e]"
-                      >
-                        <option value="">No maximum</option>
-                        <option value="750">£750</option>
-                        <option value="1000">£1,000</option>
-                        <option value="1250">£1,250</option>
-                        <option value="1500">£1,500</option>
-                        <option value="1750">£1,750</option>
-                        <option value="2000">£2,000</option>
-                        <option value="2500">£2,500</option>
-                        <option value="3000">£3,000</option>
-                        <option value="4000">£4,000</option>
-                        <option value="5000">£5,000</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
+                <ToggleFilter
+                  title="Garden"
+                  description="Show properties with a garden"
+                  checked={garden}
+                  onChange={setGarden}
+                />
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-3">
-                    Bedrooms & Bathrooms
-                  </label>
+                <ToggleFilter
+                  title="Parking"
+                  description="Show properties with parking"
+                  checked={parking}
+                  onChange={setParking}
+                />
 
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                        Minimum Bedrooms
-                      </label>
+                <ToggleFilter
+                  title="Student Friendly"
+                  description="Show student-friendly properties"
+                  checked={studentFriendly}
+                  onChange={setStudentFriendly}
+                />
 
-                      <select
-                        value={minBeds}
-                        onChange={(e) =>
-                          setMinBeds(
-                            e.target.value ? Number(e.target.value) : ""
-                          )
-                        }
-                        className="w-full p-3 rounded-xl border border-gray-200 text-gray-900 bg-white outline-none focus:border-[#ae884e]"
-                      >
-                        <option value="">Any</option>
-                        <option value="1">1+ Bedrooms</option>
-                        <option value="2">2+ Bedrooms</option>
-                        <option value="3">3+ Bedrooms</option>
-                        <option value="4">4+ Bedrooms</option>
-                        <option value="5">5+ Bedrooms</option>
-                      </select>
-                    </div>
+                <ToggleFilter
+                  title="Families Allowed"
+                  description="Show properties suitable for families"
+                  checked={familiesAllowed}
+                  onChange={setFamiliesAllowed}
+                />
 
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                        Maximum Bedrooms
-                      </label>
-
-                      <select
-                        value={maxBeds}
-                        onChange={(e) =>
-                          setMaxBeds(
-                            e.target.value ? Number(e.target.value) : ""
-                          )
-                        }
-                        className="w-full p-3 rounded-xl border border-gray-200 text-gray-900 bg-white outline-none focus:border-[#ae884e]"
-                      >
-                        <option value="">Any</option>
-                        <option value="1">Up to 1 Bedroom</option>
-                        <option value="2">Up to 2 Bedrooms</option>
-                        <option value="3">Up to 3 Bedrooms</option>
-                        <option value="4">Up to 4 Bedrooms</option>
-                        <option value="5">Up to 5 Bedrooms</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                        Minimum Bathrooms
-                      </label>
-
-                      <select
-                        value={minBaths}
-                        onChange={(e) =>
-                          setMinBaths(
-                            e.target.value ? Number(e.target.value) : ""
-                          )
-                        }
-                        className="w-full p-3 rounded-xl border border-gray-200 text-gray-900 bg-white outline-none focus:border-[#ae884e]"
-                      >
-                        <option value="">Any</option>
-                        <option value="1">1+ Bathrooms</option>
-                        <option value="2">2+ Bathrooms</option>
-                        <option value="3">3+ Bathrooms</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-4">
-                    Property Features
-                  </label>
-
-                  <div className="space-y-3">
-                    {[
-                      {
-                        label: "Pets Allowed",
-                        icon: PawPrint,
-                        value: petsAllowed,
-                        setter: setPetsAllowed,
-                      },
-                      {
-                        label: "Garden",
-                        icon: TreePine,
-                        value: garden,
-                        setter: setGarden,
-                      },
-                      {
-                        label: "Parking",
-                        icon: Car,
-                        value: parking,
-                        setter: setParking,
-                      },
-                      {
-                        label: "Student Friendly",
-                        icon: GraduationCap,
-                        value: studentFriendly,
-                        setter: setStudentFriendly,
-                      },
-                      {
-                        label: "Families Allowed",
-                        icon: Users,
-                        value: familiesAllowed,
-                        setter: setFamiliesAllowed,
-                      },
-                      {
-                        label: "DSS / LHA Considered",
-                        icon: BadgeCheck,
-                        value: dssAllowed,
-                        setter: setDssAllowed,
-                      },
-                    ].map((feature) => {
-                      const Icon = feature.icon;
-
-                      return (
-                        <label
-                          key={feature.label}
-                          className="flex items-center gap-3 p-3.5 bg-white border border-gray-100 rounded-xl cursor-pointer hover:border-[#ae884e]/30 transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={feature.value}
-                            onChange={(e) =>
-                              feature.setter(e.target.checked)
-                            }
-                            className="w-5 h-5 accent-[#ae884e] rounded border-gray-300"
-                          />
-
-                          <Icon className="w-4 h-4 text-[#ae884e]" />
-
-                          <span className="text-sm font-medium text-gray-700">
-                            {feature.label}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
+                <ToggleFilter
+                  title="DSS / LHA"
+                  description="Show properties where DSS / LHA is considered"
+                  checked={dssAllowed}
+                  onChange={setDssAllowed}
+                />
               </div>
 
-              <div className="p-5 md:p-6 border-t border-gray-100 bg-white flex gap-3 shrink-0">
+              <div className="p-5 border-t border-gray-100 bg-white flex gap-3">
                 <button
                   onClick={clearFilters}
-                  className="flex-1 inline-flex items-center justify-center gap-2 py-3.5 font-medium text-gray-600 hover:bg-gray-50 rounded-xl border border-gray-200 transition"
+                  className="flex-1 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
                 >
-                  <RotateCcw className="w-4 h-4" />
-                  Clear All
+                  Reset
                 </button>
 
                 <button
                   onClick={() => setIsFilterOpen(false)}
-                  className="flex-1 py-3.5 font-medium text-white bg-[#1c3053] hover:bg-[#ae884e] rounded-xl shadow-lg transition"
+                  className="flex-1 py-3.5 rounded-xl bg-[#1c3053] text-white font-medium hover:bg-[#ae884e] transition-colors"
                 >
-                  Show {filteredProperties.length} Results
+                  Apply Filters
                 </button>
               </div>
             </motion.div>
@@ -1300,7 +1055,6 @@ export default function PublicListingsPage() {
         )}
       </AnimatePresence>
 
-      {/* Save Search Modal */}
       <AnimatePresence>
         {isSavedSearchOpen && (
           <>
@@ -1313,92 +1067,53 @@ export default function PublicListingsPage() {
             />
 
             <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="fixed inset-0 z-[90] flex items-center justify-center p-4 pointer-events-none"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="fixed inset-0 z-[90] flex items-center justify-center p-4"
             >
-              <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-7 pointer-events-auto">
-                <div className="flex items-start justify-between gap-4 mb-6">
+              <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-7">
+                <div className="flex items-center justify-between mb-6">
                   <div>
-                    <div className="w-12 h-12 rounded-2xl bg-[#ae884e]/10 flex items-center justify-center mb-4">
-                      <Bookmark className="w-6 h-6 text-[#ae884e]" />
-                    </div>
-
-                    <h2 className="text-2xl font-semibold text-gray-900">
-                      Save This Search
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Save Search
                     </h2>
-
-                    <p className="text-sm text-gray-500 mt-2">
-                      Save your current filters so you can quickly use them
-                      again later.
+                    <p className="text-sm text-gray-500 mt-1">
+                      Save your current filters for later.
                     </p>
                   </div>
 
                   <button
                     onClick={() => setIsSavedSearchOpen(false)}
-                    aria-label="Close save search dialog"
                     className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl p-4 mb-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
-                    Current Search
-                  </p>
-
-                  <p className="text-sm text-gray-700 leading-6">
-                    {getSavedSearchSummary(currentFilters)}
-                  </p>
-                </div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Search Name
-                </label>
-
                 <input
-                  type="text"
+                  autoFocus
                   value={saveSearchName}
                   onChange={(e) => setSaveSearchName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      saveCurrentSearch();
-                    }
+                    if (e.key === "Enter") saveCurrentSearch();
                   }}
-                  autoFocus
-                  maxLength={60}
-                  placeholder="e.g. 2 bedroom Norwich"
-                  className="w-full px-4 py-3.5 rounded-xl border border-gray-200 text-gray-900 outline-none focus:border-[#ae884e] focus:ring-1 focus:ring-[#ae884e]/20"
+                  placeholder="e.g. Norwich 2-bed homes"
+                  className="w-full px-4 py-3.5 rounded-xl border border-gray-200 outline-none focus:border-[#ae884e] focus:ring-1 focus:ring-[#ae884e]/20"
                 />
 
-                {saveMessage && (
-                  <p className="text-sm text-red-600 mt-2">{saveMessage}</p>
-                )}
-
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={() => setIsSavedSearchOpen(false)}
-                    className="flex-1 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    onClick={saveCurrentSearch}
-                    className="flex-1 py-3.5 rounded-xl bg-[#1c3053] text-white font-medium hover:bg-[#ae884e] transition"
-                  >
-                    Save Search
-                  </button>
-                </div>
+                <button
+                  onClick={saveCurrentSearch}
+                  className="w-full mt-4 py-3.5 rounded-xl bg-[#1c3053] text-white font-medium hover:bg-[#ae884e] transition-colors"
+                >
+                  Save Search
+                </button>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* Saved Searches Modal */}
       <AnimatePresence>
         {isSavedSearchesOpen && (
           <>
@@ -1411,104 +1126,155 @@ export default function PublicListingsPage() {
             />
 
             <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="fixed inset-0 z-[90] flex items-center justify-center p-4 pointer-events-none"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="fixed inset-0 z-[90] flex items-center justify-center p-4"
             >
-              <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden pointer-events-auto">
-                <div className="px-7 py-6 border-b border-gray-100 flex items-center justify-between">
+              <div className="w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-white rounded-3xl shadow-2xl p-7">
+                <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-2xl font-semibold text-gray-900">
+                    <h2 className="text-xl font-semibold text-gray-900">
                       Saved Searches
                     </h2>
-
                     <p className="text-sm text-gray-500 mt-1">
-                      {savedSearches.length} of {MAX_SAVED_SEARCHES} saved
+                      Quickly restore a previous property search.
                     </p>
                   </div>
 
                   <button
                     onClick={() => setIsSavedSearchesOpen(false)}
-                    aria-label="Close saved searches"
                     className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <div className="max-h-[60vh] overflow-y-auto p-6">
-                  {savedSearches.length === 0 ? (
-                    <div className="py-12 text-center">
-                      <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-5">
-                        <Bookmark className="w-8 h-8 text-gray-300" />
-                      </div>
+                {savedSearches.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Bookmark className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">
+                      You have no saved searches yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {savedSearches.map((savedSearch) => (
+                      <div
+                        key={savedSearch.id}
+                        className="border border-gray-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4"
+                      >
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900">
+                            {savedSearch.name}
+                          </h3>
 
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        No saved searches
-                      </h3>
-
-                      <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
-                        Set your preferred filters and save the search to
-                        quickly return to it later.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {savedSearches.map((savedSearch) => (
-                        <div
-                          key={savedSearch.id}
-                          className="border border-gray-100 rounded-2xl p-5 hover:border-[#ae884e]/30 transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="min-w-0">
-                              <h3 className="font-semibold text-gray-900 truncate">
-                                {savedSearch.name}
-                              </h3>
-
-                              <p className="text-sm text-gray-500 mt-1 leading-5">
-                                {getSavedSearchSummary(savedSearch.filters)}
-                              </p>
-
-                              <p className="text-xs text-gray-400 mt-2">
-                                Saved{" "}
-                                {new Date(
-                                  savedSearch.createdAt
-                                ).toLocaleDateString("en-GB")}
-                              </p>
-                            </div>
-
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button
-                                onClick={() =>
-                                  applySavedSearch(savedSearch)
-                                }
-                                className="px-4 py-2 rounded-xl bg-[#1c3053] text-white text-sm font-medium hover:bg-[#ae884e] transition"
-                              >
-                                Apply
-                              </button>
-
-                              <button
-                                onClick={() =>
-                                  deleteSavedSearch(savedSearch.id)
-                                }
-                                aria-label={`Delete ${savedSearch.name}`}
-                                className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 transition"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Saved{" "}
+                            {new Date(
+                              savedSearch.createdAt
+                            ).toLocaleDateString("en-GB")}
+                          </p>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() =>
+                              applyFilters(savedSearch.filters)
+                            }
+                            className="px-4 py-2.5 rounded-xl bg-[#1c3053] text-white text-sm font-medium hover:bg-[#ae884e] transition-colors"
+                          >
+                            Apply
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              deleteSavedSearch(savedSearch.id)
+                            }
+                            className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:text-red-600 hover:border-red-200 text-sm font-medium transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function FilterNumber({
+  label,
+  value,
+  setValue,
+  prefix,
+}: {
+  label: string;
+  value: number | "";
+  setValue: (value: number | "") => void;
+  prefix?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-gray-900 mb-3">
+        {label}
+      </label>
+
+      <div className="relative">
+        {prefix && (
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+            {prefix}
+          </span>
+        )}
+
+        <input
+          type="number"
+          min="0"
+          value={value}
+          onChange={(e) =>
+            setValue(e.target.value === "" ? "" : Number(e.target.value))
+          }
+          className={`w-full ${
+            prefix ? "pl-9" : "pl-4"
+          } pr-4 py-3.5 rounded-xl border border-gray-200 text-gray-900 bg-white outline-none focus:border-[#ae884e] focus:ring-1 focus:ring-[#ae884e]/20`}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ToggleFilter({
+  title,
+  description,
+  checked,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <label className="flex items-center justify-between gap-4 cursor-pointer">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{title}</p>
+          <p className="text-xs text-gray-500 mt-1">{description}</p>
+        </div>
+
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="w-5 h-5 accent-[#1c3053]"
+        />
+      </label>
     </div>
   );
 }

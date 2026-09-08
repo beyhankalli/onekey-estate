@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import AIPropertyAssistant from "@/components/AIPropertyAssistant";
 
 export default function SiteChrome({
   children,
@@ -26,6 +27,8 @@ export default function SiteChrome({
       </main>
 
       <Footer />
+
+      <AIPropertyAssistant />
     </>
   );
 }

@@ -14,10 +14,10 @@ import {
   LogOut,
   CalendarCheck,
   MessageSquare,
+  MessageCircle,
   BarChart3,
   Settings,
   Bell,
-  Check,
   CheckCheck,
   ExternalLink,
   Loader2,
@@ -66,6 +66,16 @@ export default function AdminLayout({
       href: "/admin/customers",
     },
     {
+      name: "WhatsApp",
+      icon: MessageCircle,
+      href: "/admin/whatsapp",
+    },
+    {
+      name: "Lead Tracking",
+      icon: Users,
+      href: "/admin/leads",
+    },
+    {
       name: "Properties",
       icon: Home,
       href: "/admin/properties",
@@ -108,7 +118,8 @@ export default function AdminLayout({
   ];
 
   const unreadCount = useMemo(
-    () => notifications.filter((notification) => !notification.is_read).length,
+    () =>
+      notifications.filter((notification) => !notification.is_read).length,
     [notifications]
   );
 
@@ -390,7 +401,9 @@ export default function AdminLayout({
           <div className="relative" ref={notificationRef}>
             <button
               type="button"
-              onClick={() => setNotificationOpen((current) => !current)}
+              onClick={() =>
+                setNotificationOpen((current) => !current)
+              }
               className="relative w-11 h-11 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center text-gray-600"
               aria-label="Notifications"
               aria-expanded={notificationOpen}
@@ -411,6 +424,7 @@ export default function AdminLayout({
                     <h2 className="font-semibold text-gray-900">
                       Notifications
                     </h2>
+
                     <p className="text-xs text-gray-500 mt-0.5">
                       {unreadCount === 0
                         ? "You're all caught up."
@@ -443,89 +457,104 @@ export default function AdminLayout({
                   {notificationsLoading ? (
                     <div className="py-12 flex flex-col items-center justify-center text-gray-400">
                       <Loader2 className="w-6 h-6 animate-spin mb-3" />
-                      <p className="text-sm">Loading notifications...</p>
+                      <p className="text-sm">
+                        Loading notifications...
+                      </p>
                     </div>
                   ) : notifications.length === 0 ? (
                     <div className="py-12 px-6 text-center">
                       <div className="w-12 h-12 mx-auto rounded-full bg-gray-50 flex items-center justify-center mb-3">
                         <Bell className="w-5 h-5 text-gray-300" />
                       </div>
+
                       <p className="text-sm font-medium text-gray-700">
                         No notifications
                       </p>
+
                       <p className="text-xs text-gray-400 mt-1">
                         New activity will appear here.
                       </p>
                     </div>
                   ) : (
-                    notifications.slice(0, 10).map((notification) => (
-                      <button
-                        key={notification.id}
-                        type="button"
-                        onClick={() =>
-                          markNotificationAsRead(notification, true)
-                        }
-                        disabled={
-                          updatingNotificationId === notification.id
-                        }
-                        className={`w-full text-left px-5 py-4 border-b border-gray-50 transition-colors ${
-                          notification.is_read
-                            ? "bg-white hover:bg-gray-50"
-                            : "bg-blue-50/40 hover:bg-blue-50"
-                        }`}
-                      >
-                        <div className="flex gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center ${getNotificationIconContainer(
-                              notification.type
-                            )}`}
-                          >
-                            {updatingNotificationId === notification.id ? (
-                              <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                              getNotificationIcon(notification.type)
-                            )}
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start gap-2">
-                              <p
-                                className={`text-sm ${
-                                  notification.is_read
-                                    ? "font-medium text-gray-800"
-                                    : "font-semibold text-gray-900"
-                                }`}
-                              >
-                                {notification.title}
-                              </p>
-
-                              {!notification.is_read && (
-                                <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1.5" />
+                    notifications
+                      .slice(0, 10)
+                      .map((notification) => (
+                        <button
+                          key={notification.id}
+                          type="button"
+                          onClick={() =>
+                            markNotificationAsRead(
+                              notification,
+                              true
+                            )
+                          }
+                          disabled={
+                            updatingNotificationId ===
+                            notification.id
+                          }
+                          className={`w-full text-left px-5 py-4 border-b border-gray-50 transition-colors ${
+                            notification.is_read
+                              ? "bg-white hover:bg-gray-50"
+                              : "bg-blue-50/40 hover:bg-blue-50"
+                          }`}
+                        >
+                          <div className="flex gap-3">
+                            <div
+                              className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center ${getNotificationIconContainer(
+                                notification.type
+                              )}`}
+                            >
+                              {updatingNotificationId ===
+                              notification.id ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                              ) : (
+                                getNotificationIcon(
+                                  notification.type
+                                )
                               )}
                             </div>
 
-                            {notification.message && (
-                              <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                {notification.message}
-                              </p>
-                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start gap-2">
+                                <p
+                                  className={`text-sm ${
+                                    notification.is_read
+                                      ? "font-medium text-gray-800"
+                                      : "font-semibold text-gray-900"
+                                  }`}
+                                >
+                                  {notification.title}
+                                </p>
 
-                            <p className="text-[11px] text-gray-400 mt-2">
-                              {formatNotificationTime(
-                                notification.created_at
+                                {!notification.is_read && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1.5" />
+                                )}
+                              </div>
+
+                              {notification.message && (
+                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                  {notification.message}
+                                </p>
                               )}
-                            </p>
+
+                              <p className="text-[11px] text-gray-400 mt-2">
+                                {formatNotificationTime(
+                                  notification.created_at
+                                )}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                    ))
+                        </button>
+                      ))
                   )}
                 </div>
 
                 <div className="border-t border-gray-100 p-3">
                   <Link
                     href="/admin/notifications"
-                    onClick={() => setNotificationOpen(false)}
+                    onClick={() =>
+                      setNotificationOpen(false)
+                    }
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700 transition-colors"
                   >
                     View all notifications
