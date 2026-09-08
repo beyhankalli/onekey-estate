@@ -14,7 +14,6 @@ import {
   Calendar,
   CalendarCheck,
   CheckCircle2,
-  XCircle,
   Clock,
   UserRound,
   Phone,
@@ -25,6 +24,29 @@ import {
   Loader2,
   TrendingUp,
 } from "lucide-react";
+
+type BookingProperty = {
+  id: string;
+  title: string;
+  property_ref: string;
+};
+
+type BookingQueryRow = {
+  id: string;
+  agent_id: string | null;
+  property_id: string | null;
+  viewing_date: string;
+  start_time: string;
+  end_time: string;
+  customer_name: string;
+  customer_email: string | null;
+  customer_phone: string;
+  status: string;
+  property:
+    | BookingProperty
+    | BookingProperty[]
+    | null;
+};
 
 type Booking = {
   id: string;
@@ -37,14 +59,10 @@ type Booking = {
   customer_email: string | null;
   customer_phone: string;
   status: string;
-  property?: {
-    id: string;
-    title: string;
-    property_ref: string;
-  } | null;
+  property: BookingProperty | null;
 };
 
-type Agent = {
+type AgentRow = {
   id: string;
   name: string;
   email: string | null;
@@ -53,6 +71,9 @@ type Agent = {
   bio: string | null;
   photo: string | null;
   created_at: string;
+};
+
+type Agent = AgentRow & {
   propertyCount: number;
   totalBookings: number;
   pendingBookings: number;
@@ -63,7 +84,32 @@ type Agent = {
   upcomingBookings: Booking[];
 };
 
-const ACTIVE_STATUSES = ["pending", "confirmed", "completed", "cancelled", "no_show"];
+type AgentFormData = {
+  name: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  bio: string;
+  photoUrl: string;
+  password: string;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return "An unexpected error occurred.";
+}
 
 export default function AdminAgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -75,7 +121,7 @@ export default function AdminAgentsPage() {
   const [saving, setSaving] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AgentFormData>({
     name: "",
     email: "",
     phone: "",
@@ -87,15 +133,17 @@ export default function AdminAgentsPage() {
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
 
-  const supabase = createClient();
-
   const fetchAgents = async () => {
     setLoading(true);
 
     try {
+      const supabase = createClient();
+
       const { data: agentsData, error: agentsError } = await supabase
         .from("agents")
-        .select("*")
+        .select(
+          "id, name, email, phone, whatsapp, bio, photo, created_at"
+        )
         .order("created_at", { ascending: false });
 
       if (agentsError) {
@@ -112,11 +160,8 @@ export default function AdminAgentsPage() {
       const today = new Date().toISOString().split("T")[0];
 
       const agentsWithStats = await Promise.all(
-        agentsData.map(async (agent) => {
-          const [
-            propertyResult,
-            bookingResult,
-          ] = await Promise.all([
+        (agentsData as AgentRow[]).map(async (agent) => {
+          const [propertyResult, bookingResult] = await Promise.all([
             supabase
               .from("properties")
               .select("*", { count: "exact", head: true })
@@ -148,12 +193,37 @@ export default function AdminAgentsPage() {
               .order("start_time", { ascending: true }),
           ]);
 
-          const bookings = (bookingResult.data || []).map((booking: any) => ({
-            ...booking,
+          if (propertyResult.error) {
+            console.error(
+              `Error fetching properties for agent ${agent.id}:`,
+              propertyResult.error
+            );
+          }
+
+          if (bookingResult.error) {
+            console.error(
+              `Error fetching bookings for agent ${agent.id}:`,
+              bookingResult.error
+            );
+          }
+
+          const bookingRows = (bookingResult.data || []) as BookingQueryRow[];
+
+          const bookings: Booking[] = bookingRows.map((booking) => ({
+            id: booking.id,
+            agent_id: booking.agent_id,
+            property_id: booking.property_id,
+            viewing_date: booking.viewing_date,
+            start_time: booking.start_time,
+            end_time: booking.end_time,
+            customer_name: booking.customer_name,
+            customer_email: booking.customer_email,
+            customer_phone: booking.customer_phone,
+            status: booking.status,
             property: Array.isArray(booking.property)
               ? booking.property[0] || null
               : booking.property || null,
-          })) as Booking[];
+          }));
 
           const propertyCount = propertyResult.count || 0;
 
@@ -197,12 +267,12 @@ export default function AdminAgentsPage() {
             cancelledBookings,
             noShowBookings,
             upcomingBookings,
-          } as Agent;
+          };
         })
       );
 
       setAgents(agentsWithStats);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error loading agents:", error);
       setAgents([]);
     } finally {
@@ -211,15 +281,19 @@ export default function AdminAgentsPage() {
   };
 
   useEffect(() => {
-    fetchAgents();
+    void fetchAgents();
   }, []);
 
-  const uploadPhotoToSupabase = async (file: File) => {
-    const fileExt = file.name.split(".").pop();
+  const uploadPhotoToSupabase = async (file: File): Promise<string> => {
+    const supabase = createClient();
+
+    const extension = file.name.includes(".")
+      ? file.name.split(".").pop()?.toLowerCase() || "jpg"
+      : "jpg";
 
     const fileName = `agent-${Math.random()
       .toString(36)
-      .substring(2)}-${Date.now()}.${fileExt}`;
+      .substring(2)}-${Date.now()}.${extension}`;
 
     const filePath = `agents/${fileName}`;
 
@@ -280,13 +354,15 @@ export default function AdminAgentsPage() {
     setUploadStatus("");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     setSaving(true);
     setUploadStatus("Saving agent details...");
 
     try {
+      const supabase = createClient();
+
       let finalPhotoUrl = formData.photoUrl;
 
       if (photoFile) {
@@ -296,14 +372,26 @@ export default function AdminAgentsPage() {
 
       const payload = {
         name: formData.name.trim(),
-        email: formData.email.trim() === "" ? null : formData.email.trim(),
-        phone: formData.phone.trim() === "" ? null : formData.phone.trim(),
+        email:
+          formData.email.trim() === ""
+            ? null
+            : formData.email.trim(),
+        phone:
+          formData.phone.trim() === ""
+            ? null
+            : formData.phone.trim(),
         whatsapp:
           formData.whatsapp.trim() === ""
             ? null
             : formData.whatsapp.trim(),
-        bio: formData.bio.trim() === "" ? null : formData.bio.trim(),
-        photo: finalPhotoUrl === "" ? null : finalPhotoUrl,
+        bio:
+          formData.bio.trim() === ""
+            ? null
+            : formData.bio.trim(),
+        photo:
+          finalPhotoUrl.trim() === ""
+            ? null
+            : finalPhotoUrl.trim(),
       };
 
       if (editingId) {
@@ -312,14 +400,20 @@ export default function AdminAgentsPage() {
           .update(payload)
           .eq("id", editingId);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         if (!payload.email) {
-          throw new Error("Email address is required for a new agent.");
+          throw new Error(
+            "Email address is required for a new agent."
+          );
         }
 
         if (formData.password.length < 6) {
-          throw new Error("Password must be at least 6 characters long.");
+          throw new Error(
+            "Password must be at least 6 characters long."
+          );
         }
 
         setUploadStatus("Creating secure agent account...");
@@ -340,15 +434,22 @@ export default function AdminAgentsPage() {
           }),
         });
 
-        const result = await response.json();
+        const result: {
+          success?: boolean;
+          error?: string;
+        } = await response.json();
 
         if (!response.ok || !result.success) {
-          throw new Error(result.error || "Failed to create agent account.");
+          throw new Error(
+            result.error || "Failed to create agent account."
+          );
         }
       }
 
       alert(
-        `Agent successfully ${editingId ? "updated" : "added"}!`
+        `Agent successfully ${
+          editingId ? "updated" : "added"
+        }!`
       );
 
       setIsFormOpen(false);
@@ -356,15 +457,20 @@ export default function AdminAgentsPage() {
       setPhotoFile(null);
 
       await fetchAgents();
-    } catch (error: any) {
-      alert("Error saving agent: " + error.message);
+    } catch (error: unknown) {
+      alert(
+        "Error saving agent: " + getErrorMessage(error)
+      );
     } finally {
       setSaving(false);
       setUploadStatus("");
     }
   };
 
-  const handleDelete = async (id: string, propertyCount: number) => {
+  const handleDelete = async (
+    id: string,
+    propertyCount: number
+  ) => {
     const agent = agents.find((item) => item.id === id);
 
     if (!agent) return;
@@ -375,12 +481,14 @@ export default function AdminAgentsPage() {
       "Are you sure you want to delete this agent?";
 
     if (propertyCount > 0 || hasBookings) {
-      const warnings = [];
+      const warnings: string[] = [];
 
       if (propertyCount > 0) {
         warnings.push(
           `${propertyCount} assigned ${
-            propertyCount === 1 ? "property" : "properties"
+            propertyCount === 1
+              ? "property"
+              : "properties"
           }`
         );
       }
@@ -388,7 +496,9 @@ export default function AdminAgentsPage() {
       if (hasBookings) {
         warnings.push(
           `${agent.totalBookings} ${
-            agent.totalBookings === 1 ? "booking" : "bookings"
+            agent.totalBookings === 1
+              ? "booking"
+              : "bookings"
           }`
         );
       }
@@ -402,12 +512,16 @@ export default function AdminAgentsPage() {
     if (!window.confirm(confirmationMessage)) return;
 
     try {
+      const supabase = createClient();
+
       const { error } = await supabase
         .from("agents")
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (expandedAgentId === id) {
         setExpandedAgentId(null);
@@ -416,17 +530,22 @@ export default function AdminAgentsPage() {
       alert("Agent successfully deleted!");
 
       await fetchAgents();
-    } catch (error: any) {
-      alert("Error deleting agent: " + error.message);
+    } catch (error: unknown) {
+      alert(
+        "Error deleting agent: " + getErrorMessage(error)
+      );
     }
   };
 
   const formatDate = (date: string) => {
-    return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    return new Date(`${date}T00:00:00`).toLocaleDateString(
+      "en-GB",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
   };
 
   const formatTime = (time: string) => {
@@ -435,7 +554,12 @@ export default function AdminAgentsPage() {
     const [hours, minutes] = time.split(":");
 
     const date = new Date();
-    date.setHours(Number(hours), Number(minutes), 0, 0);
+    date.setHours(
+      Number(hours),
+      Number(minutes),
+      0,
+      0
+    );
 
     return date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
@@ -478,27 +602,38 @@ export default function AdminAgentsPage() {
   };
 
   const totalProperties = useMemo(
-    () => agents.reduce((sum, agent) => sum + agent.propertyCount, 0),
-    [agents]
-  );
-
-  const totalBookings = useMemo(
-    () => agents.reduce((sum, agent) => sum + agent.totalBookings, 0),
+    () =>
+      agents.reduce(
+        (sum, agent) => sum + agent.propertyCount,
+        0
+      ),
     [agents]
   );
 
   const totalPending = useMemo(
-    () => agents.reduce((sum, agent) => sum + agent.pendingBookings, 0),
+    () =>
+      agents.reduce(
+        (sum, agent) => sum + agent.pendingBookings,
+        0
+      ),
     [agents]
   );
 
   const totalConfirmed = useMemo(
-    () => agents.reduce((sum, agent) => sum + agent.confirmedBookings, 0),
+    () =>
+      agents.reduce(
+        (sum, agent) => sum + agent.confirmedBookings,
+        0
+      ),
     [agents]
   );
 
   const totalCompleted = useMemo(
-    () => agents.reduce((sum, agent) => sum + agent.completedBookings, 0),
+    () =>
+      agents.reduce(
+        (sum, agent) => sum + agent.completedBookings,
+        0
+      ),
     [agents]
   );
 
@@ -532,12 +667,14 @@ export default function AdminAgentsPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={fetchAgents}
+            onClick={() => void fetchAgents()}
             disabled={loading}
             className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
             <RefreshCw
-              className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+              className={`w-4 h-4 ${
+                loading ? "animate-spin" : ""
+              }`}
             />
             Refresh
           </button>
@@ -563,7 +700,9 @@ export default function AdminAgentsPage() {
             </div>
           </div>
 
-          <p className="text-xs text-gray-500 mt-4">Total Agents</p>
+          <p className="text-xs text-gray-500 mt-4">
+            Total Agents
+          </p>
           <p className="text-2xl font-semibold text-gray-900 mt-1">
             {agents.length}
           </p>
@@ -574,7 +713,9 @@ export default function AdminAgentsPage() {
             <Home className="w-5 h-5" />
           </div>
 
-          <p className="text-xs text-gray-500 mt-4">Assigned Properties</p>
+          <p className="text-xs text-gray-500 mt-4">
+            Assigned Properties
+          </p>
           <p className="text-2xl font-semibold text-gray-900 mt-1">
             {totalProperties}
           </p>
@@ -585,7 +726,9 @@ export default function AdminAgentsPage() {
             <Clock className="w-5 h-5" />
           </div>
 
-          <p className="text-xs text-gray-500 mt-4">Pending Viewings</p>
+          <p className="text-xs text-gray-500 mt-4">
+            Pending Viewings
+          </p>
           <p className="text-2xl font-semibold text-gray-900 mt-1">
             {totalPending}
           </p>
@@ -596,7 +739,9 @@ export default function AdminAgentsPage() {
             <CalendarCheck className="w-5 h-5" />
           </div>
 
-          <p className="text-xs text-gray-500 mt-4">Confirmed Viewings</p>
+          <p className="text-xs text-gray-500 mt-4">
+            Confirmed Viewings
+          </p>
           <p className="text-2xl font-semibold text-gray-900 mt-1">
             {totalConfirmed}
           </p>
@@ -607,7 +752,9 @@ export default function AdminAgentsPage() {
             <CheckCircle2 className="w-5 h-5" />
           </div>
 
-          <p className="text-xs text-gray-500 mt-4">Completed Viewings</p>
+          <p className="text-xs text-gray-500 mt-4">
+            Completed Viewings
+          </p>
           <p className="text-2xl font-semibold text-gray-900 mt-1">
             {totalCompleted}
           </p>
@@ -621,7 +768,9 @@ export default function AdminAgentsPage() {
         >
           <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-4">
             <h2 className="text-xl font-semibold text-gray-900">
-              {editingId ? "Edit Agent Details" : "New Agent Details"}
+              {editingId
+                ? "Edit Agent Details"
+                : "New Agent Details"}
             </h2>
 
             <button
@@ -645,10 +794,10 @@ export default function AdminAgentsPage() {
                 required
                 value={formData.name}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
+                  setFormData((current) => ({
+                    ...current,
                     name: e.target.value,
-                  })
+                  }))
                 }
                 className={inputClass}
                 placeholder="e.g. Sarah Jenkins"
@@ -664,10 +813,10 @@ export default function AdminAgentsPage() {
                 type="email"
                 value={formData.email}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
+                  setFormData((current) => ({
+                    ...current,
                     email: e.target.value,
-                  })
+                  }))
                 }
                 className={inputClass}
                 placeholder="sarah@onekey.co.uk"
@@ -686,17 +835,19 @@ export default function AdminAgentsPage() {
                   minLength={6}
                   value={formData.password}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
+                    setFormData((current) => ({
+                      ...current,
                       password: e.target.value,
-                    })
+                    }))
                   }
                   className={inputClass}
                   placeholder="Set the agent's portal password"
                   autoComplete="new-password"
                 />
+
                 <p className="text-xs text-gray-400 mt-1.5">
-                  This password is used by the agent to sign in to the portal.
+                  This password is used by the agent to sign in to
+                  the portal.
                 </p>
               </div>
             )}
@@ -710,10 +861,10 @@ export default function AdminAgentsPage() {
                 type="text"
                 value={formData.phone}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
+                  setFormData((current) => ({
+                    ...current,
                     phone: e.target.value,
-                  })
+                  }))
                 }
                 className={inputClass}
                 placeholder="+44 7000 000000"
@@ -729,10 +880,10 @@ export default function AdminAgentsPage() {
                 type="text"
                 value={formData.whatsapp}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
+                  setFormData((current) => ({
+                    ...current,
                     whatsapp: e.target.value,
-                  })
+                  }))
                 }
                 className={inputClass}
                 placeholder="+44 7000 000000"
@@ -749,10 +900,10 @@ export default function AdminAgentsPage() {
               rows={3}
               value={formData.bio}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
+                setFormData((current) => ({
+                  ...current,
                   bio: e.target.value,
-                })
+                }))
               }
               className={inputClass}
               placeholder="A short description about the agent's experience..."
@@ -814,6 +965,7 @@ export default function AdminAgentsPage() {
       {agents.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 p-12 text-center text-gray-500 flex flex-col items-center">
           <Users className="w-12 h-12 text-gray-300 mb-4" />
+
           <p>No agents found in your agency yet.</p>
 
           <button
@@ -833,7 +985,9 @@ export default function AdminAgentsPage() {
             const completionRate =
               agent.totalBookings > 0
                 ? Math.round(
-                    (agent.completedBookings / agent.totalBookings) * 100
+                    (agent.completedBookings /
+                      agent.totalBookings) *
+                      100
                   )
                 : 0;
 
@@ -854,7 +1008,9 @@ export default function AdminAgentsPage() {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-[#1c3053]/10 text-[#1c3053] font-semibold text-xl">
-                            {agent.name.charAt(0).toUpperCase()}
+                            {agent.name
+                              .charAt(0)
+                              .toUpperCase()}
                           </div>
                         )}
                       </div>
@@ -886,6 +1042,7 @@ export default function AdminAgentsPage() {
                           <Home className="w-3.5 h-3.5 text-[#1c3053]" />
                           Properties
                         </div>
+
                         <p className="font-semibold text-gray-900 mt-1">
                           {agent.propertyCount}
                         </p>
@@ -896,6 +1053,7 @@ export default function AdminAgentsPage() {
                           <Calendar className="w-3.5 h-3.5 text-[#ae884e]" />
                           Total
                         </div>
+
                         <p className="font-semibold text-gray-900 mt-1">
                           {agent.totalBookings}
                         </p>
@@ -906,6 +1064,7 @@ export default function AdminAgentsPage() {
                           <Clock className="w-3.5 h-3.5" />
                           Pending
                         </div>
+
                         <p className="font-semibold text-amber-800 mt-1">
                           {agent.pendingBookings}
                         </p>
@@ -916,6 +1075,7 @@ export default function AdminAgentsPage() {
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           Completed
                         </div>
+
                         <p className="font-semibold text-green-800 mt-1">
                           {agent.completedBookings}
                         </p>
@@ -935,7 +1095,7 @@ export default function AdminAgentsPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          handleDelete(
+                          void handleDelete(
                             agent.id,
                             agent.propertyCount
                           )
@@ -977,6 +1137,7 @@ export default function AdminAgentsPage() {
                         <p className="text-xs text-gray-500">
                           Confirmed
                         </p>
+
                         <p className="text-xl font-semibold text-blue-700 mt-1">
                           {agent.confirmedBookings}
                         </p>
@@ -986,6 +1147,7 @@ export default function AdminAgentsPage() {
                         <p className="text-xs text-gray-500">
                           Completed
                         </p>
+
                         <p className="text-xl font-semibold text-green-700 mt-1">
                           {agent.completedBookings}
                         </p>
@@ -995,6 +1157,7 @@ export default function AdminAgentsPage() {
                         <p className="text-xs text-gray-500">
                           Cancelled
                         </p>
+
                         <p className="text-xl font-semibold text-red-700 mt-1">
                           {agent.cancelledBookings}
                         </p>
@@ -1004,6 +1167,7 @@ export default function AdminAgentsPage() {
                         <p className="text-xs text-gray-500">
                           No-show
                         </p>
+
                         <p className="text-xl font-semibold text-gray-700 mt-1">
                           {agent.noShowBookings}
                         </p>
@@ -1014,6 +1178,7 @@ export default function AdminAgentsPage() {
                       <div className="lg:col-span-1 bg-white rounded-2xl border border-gray-100 p-5">
                         <div className="flex items-center gap-2 mb-5">
                           <TrendingUp className="w-5 h-5 text-[#ae884e]" />
+
                           <h4 className="font-semibold text-gray-900">
                             Performance
                           </h4>
@@ -1024,6 +1189,7 @@ export default function AdminAgentsPage() {
                             <span className="text-gray-500">
                               Completion rate
                             </span>
+
                             <span className="font-semibold text-gray-900">
                               {completionRate}%
                             </span>
@@ -1047,6 +1213,7 @@ export default function AdminAgentsPage() {
                             <span className="text-gray-500">
                               Properties
                             </span>
+
                             <span className="font-medium text-gray-900">
                               {agent.propertyCount}
                             </span>
@@ -1056,6 +1223,7 @@ export default function AdminAgentsPage() {
                             <span className="text-gray-500">
                               Total viewings
                             </span>
+
                             <span className="font-medium text-gray-900">
                               {agent.totalBookings}
                             </span>
@@ -1065,6 +1233,7 @@ export default function AdminAgentsPage() {
                             <span className="text-gray-500">
                               Confirmed
                             </span>
+
                             <span className="font-medium text-blue-700">
                               {agent.confirmedBookings}
                             </span>
@@ -1074,6 +1243,7 @@ export default function AdminAgentsPage() {
                             <span className="text-gray-500">
                               Completed
                             </span>
+
                             <span className="font-medium text-green-700">
                               {agent.completedBookings}
                             </span>
@@ -1087,8 +1257,10 @@ export default function AdminAgentsPage() {
                             <h4 className="font-semibold text-gray-900">
                               Upcoming Viewings
                             </h4>
+
                             <p className="text-xs text-gray-400 mt-1">
-                              Next scheduled appointments for this agent.
+                              Next scheduled appointments for this
+                              agent.
                             </p>
                           </div>
 
@@ -1098,87 +1270,93 @@ export default function AdminAgentsPage() {
                         {agent.upcomingBookings.length === 0 ? (
                           <div className="p-10 text-center">
                             <Calendar className="w-8 h-8 mx-auto text-gray-300 mb-3" />
+
                             <p className="text-sm font-medium text-gray-600">
                               No upcoming viewings
                             </p>
+
                             <p className="text-xs text-gray-400 mt-1">
                               New appointments will appear here.
                             </p>
                           </div>
                         ) : (
                           <div className="divide-y divide-gray-100">
-                            {agent.upcomingBookings.map((booking) => (
-                              <div
-                                key={booking.id}
-                                className="p-4 hover:bg-gray-50 transition-colors"
-                              >
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <UserRound className="w-4 h-4 text-gray-400 shrink-0" />
+                            {agent.upcomingBookings.map(
+                              (booking) => (
+                                <div
+                                  key={booking.id}
+                                  className="p-4 hover:bg-gray-50 transition-colors"
+                                >
+                                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <UserRound className="w-4 h-4 text-gray-400 shrink-0" />
 
-                                      <p className="font-medium text-gray-900 truncate">
-                                        {booking.customer_name}
+                                        <p className="font-medium text-gray-900 truncate">
+                                          {booking.customer_name}
+                                        </p>
+                                      </div>
+
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {booking.property?.title ||
+                                          "Property not available"}
+
+                                        {booking.property
+                                          ?.property_ref
+                                          ? ` · ${booking.property.property_ref}`
+                                          : ""}
                                       </p>
-                                    </div>
 
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      {booking.property?.title ||
-                                        "Property not available"}
-                                      {booking.property?.property_ref
-                                        ? ` · ${booking.property.property_ref}`
-                                        : ""}
-                                    </p>
-
-                                    <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-400">
-                                      {booking.customer_phone && (
-                                        <span className="flex items-center gap-1">
-                                          <Phone className="w-3 h-3" />
-                                          {booking.customer_phone}
-                                        </span>
-                                      )}
-
-                                      {booking.customer_email && (
-                                        <span className="flex items-center gap-1">
-                                          <Mail className="w-3 h-3" />
-                                          {booking.customer_email}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    <div className="text-right">
-                                      <p className="text-sm font-semibold text-gray-900">
-                                        {formatDate(
-                                          booking.viewing_date
+                                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-400">
+                                        {booking.customer_phone && (
+                                          <span className="flex items-center gap-1">
+                                            <Phone className="w-3 h-3" />
+                                            {booking.customer_phone}
+                                          </span>
                                         )}
-                                      </p>
 
-                                      <p className="text-xs text-[#ae884e] font-medium mt-0.5">
-                                        {formatTime(
-                                          booking.start_time
-                                        )}{" "}
-                                        –{" "}
-                                        {formatTime(
-                                          booking.end_time
+                                        {booking.customer_email && (
+                                          <span className="flex items-center gap-1">
+                                            <Mail className="w-3 h-3" />
+                                            {booking.customer_email}
+                                          </span>
                                         )}
-                                      </p>
+                                      </div>
                                     </div>
 
-                                    <span
-                                      className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium ${getStatusClasses(
-                                        booking.status
-                                      )}`}
-                                    >
-                                      {getStatusLabel(
-                                        booking.status
-                                      )}
-                                    </span>
+                                    <div className="flex items-center gap-3 shrink-0">
+                                      <div className="text-right">
+                                        <p className="text-sm font-semibold text-gray-900">
+                                          {formatDate(
+                                            booking.viewing_date
+                                          )}
+                                        </p>
+
+                                        <p className="text-xs text-[#ae884e] font-medium mt-0.5">
+                                          {formatTime(
+                                            booking.start_time
+                                          )}{" "}
+                                          –{" "}
+                                          {formatTime(
+                                            booking.end_time
+                                          )}
+                                        </p>
+                                      </div>
+
+                                      <span
+                                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium ${getStatusClasses(
+                                          booking.status
+                                        )}`}
+                                      >
+                                        {getStatusLabel(
+                                          booking.status
+                                        )}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              )
+                            )}
                           </div>
                         )}
                       </div>
@@ -1215,5 +1393,3 @@ export default function AdminAgentsPage() {
     </div>
   );
 }
-
-

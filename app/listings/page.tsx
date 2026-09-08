@@ -33,6 +33,7 @@ import { useCompare } from "@/context/CompareContext";
 type PropertyImage = {
   url: string | null;
   image_type: string | null;
+  display_order: number | null;
 };
 
 type Property = {
@@ -151,7 +152,8 @@ export default function PublicListingsPage() {
               created_at,
               property_images(
                 url,
-                image_type
+                image_type,
+                display_order
               )
             `
           )
@@ -681,13 +683,15 @@ export default function PublicListingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredProperties.map((property) => {
               const thumbnail =
-                property.property_images?.find(
-                  (img) => img.image_type === "exterior"
-                )?.url ||
+                [...(property.property_images || [])]
+                  .sort(
+                    (a, b) =>
+                      (a.display_order ?? Number.MAX_SAFE_INTEGER) -
+                      (b.display_order ?? Number.MAX_SAFE_INTEGER)
+                  )[0]?.url ||
                 property.property_images?.find(
                   (img) => img.image_type === "main"
                 )?.url ||
-                property.property_images?.[0]?.url ||
                 "https://via.placeholder.com/600x400?text=No+Image";
 
               const isSaved = isInWishlist(property.id);
