@@ -144,7 +144,8 @@ export default function AIPropertyAssistant() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm font-semibold text-white shadow-2xl transition hover:scale-[1.03] hover:bg-neutral-800"
+          // Footer çakışmasını önlemek için bottom mesafesi yukarı taşındı (bottom-20)
+          className="fixed bottom-20 right-6 z-50 flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm font-semibold text-white shadow-2xl transition hover:scale-[1.03] hover:bg-neutral-800"
           aria-label="Open OneKey AI"
         >
           <Sparkles className="h-4 w-4" />
@@ -153,7 +154,7 @@ export default function AIPropertyAssistant() {
       )}
 
       {open && (
-        <div className="fixed bottom-5 right-5 z-50 flex h-[min(680px,calc(100vh-40px))] w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
+        <div className="fixed bottom-20 right-5 z-50 flex h-[min(680px,calc(100vh-40px))] w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
           <div className="flex items-center justify-between bg-black px-5 py-4 text-white">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
