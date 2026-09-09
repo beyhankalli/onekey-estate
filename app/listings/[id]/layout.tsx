@@ -31,8 +31,10 @@ async function getPropertyForSeo(id: string): Promise<PropertySeoData | null> {
     return null;
   }
 
+  // status = Published filtresi eklendi (Güvenlik Master v2 - Madde 5)
   const query = new URLSearchParams({
     id: `eq.${id}`,
+    status: "eq.Published",
     select:
       "title,description,full_address,short_location,monthly_rent,bedrooms,bathrooms,property_ref,availability_status,property_images(url,image_type)",
     limit: "1",

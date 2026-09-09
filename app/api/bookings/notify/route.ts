@@ -7,8 +7,7 @@ import {
   sendTransactionalEmail,
 } from "@/lib/transactional-email";
 
-// Service role client: Used here specifically to read booking data that was just 
-// inserted via RLS, bypassing further row-level checks just for the email payload.
+// Service role client: Used here specifically to read booking data securely.
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -46,16 +45,13 @@ type Booking = {
   customer_email: string | null;
   customer_phone: string | null;
   status: string;
+  created_at: string;
   property: BookingProperty | BookingProperty[] | null;
   agent: BookingAgent | BookingAgent[] | null;
 };
 
 export async function POST(request: Request) {
   try {
-    // REMOVED: isAuthenticatedAdmin check.
-    // This route is called by public users/customers immediately after they 
-    // insert a booking. It must be accessible to them.
-
     const body = await request.json();
     const { bookingId } = body;
 
@@ -82,6 +78,7 @@ export async function POST(request: Request) {
         customer_email,
         customer_phone,
         status,
+        created_at,
         property:properties(
           title,
           property_ref,
@@ -96,7 +93,7 @@ export async function POST(request: Request) {
       .eq("id", bookingId)
       .single();
 
-    if (error) {
+    if (error || !data) {
       console.error("Booking lookup error:", error);
 
       return NextResponse.json(
@@ -108,17 +105,23 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!data) {
+    const booking = data as unknown as Booking;
+
+    // Güvenlik Ekstra: Randevunun çok eski (örneğin 10 dakikadan önce oluşturulmuş) olmamasını denetle.
+    // Bu sayede eski booking ID'leri ile tekrar tekrar bildirim tetiklenmesi önlenir.
+    const createdAtTime = new Date(booking.created_at).getTime();
+    const nowTime = Date.now();
+    const tenMinutesInMs = 10 * 60 * 1000;
+
+    if (isNaN(createdAtTime) || nowTime - createdAtTime > tenMinutesInMs) {
       return NextResponse.json(
         {
           success: false,
-          error: "Booking not found.",
+          error: "Unauthorized or expired notification request.",
         },
-        { status: 404 }
+        { status: 403 }
       );
     }
-
-    const booking = data as unknown as Booking;
 
     const property = Array.isArray(booking.property)
       ? booking.property[0]

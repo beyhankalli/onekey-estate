@@ -129,6 +129,7 @@ export default function PublicListingsPage() {
 
         const supabase = createClient();
 
+        // Mülk sorgusuna status = Published filtresi eklendi (Güvenlik Master v2 - Madde 3)
         const { data, error: queryError } = await supabase
           .from("properties")
           .select(
@@ -157,6 +158,7 @@ export default function PublicListingsPage() {
               )
             `
           )
+          .eq("status", "Published")
           .order("created_at", { ascending: false });
 
         if (queryError) throw queryError;

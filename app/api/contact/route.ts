@@ -1,8 +1,42 @@
 import { NextResponse } from "next/server";
 import { getAdminEmail, newMessageEmail, sendEmail } from "@/lib/email";
 
+// In-memory rate limiter to prevent spam/abuse on the public contact form
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX_REQUESTS = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+
+function applyRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
 export async function POST(request: Request) {
   try {
+    // 1. Rate Limiting Check
+    const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
+    if (!applyRateLimit(ip)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many requests. Please wait a minute before submitting another message.",
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
 
     const {
@@ -14,7 +48,7 @@ export async function POST(request: Request) {
       propertyRef,
     } = body;
 
-    // En az bir iletişim yöntemi (email veya phone) ve name ile message zorunlu kılndı
+    // En az bir iletişim yöntemi (email veya phone) ve name ile message zorunlu kılındı
     if (!name?.trim() || !message?.trim() || (!email?.trim() && !phone?.trim())) {
       return NextResponse.json(
         {

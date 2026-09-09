@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
-    // 2. Fetch properties but exclude full_address and postcode at the query level
+    // 2. Fetch properties with status = Published filter (Master v2 - Madde 6)
     const { data: properties, error: propertiesError } = await supabase
       .from("properties")
       .select(
@@ -203,8 +203,9 @@ export async function POST(request: NextRequest) {
         property_images(url, image_type)
       `
       )
+      .eq("status", "Published")
       .order("created_at", { ascending: false })
-      .limit(100); // Reduced limit from 150 to 100 to save AI token cost and stay within reliable context windows
+      .limit(100);
 
     if (propertiesError) {
       console.error("Property catalogue error:", propertiesError);
