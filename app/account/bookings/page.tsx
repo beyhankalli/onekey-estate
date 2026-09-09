@@ -16,16 +16,34 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+interface BookingProperty {
+  title?: string | null;
+  short_location?: string | null;
+  property_ref?: string | null;
+  images?: string[] | null;
+}
+
+interface CustomerBooking {
+  id: string;
+  customer_email?: string | null;
+  viewing_date: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  status: string;
+  property?: BookingProperty | BookingProperty[] | null;
+}
+
 export default function CustomerBookingsPage() {
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<CustomerBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "upcoming" | "past">("all");
 
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     async function loadBookings() {
+      const supabase = createClient();
+
       try {
         const {
           data: { user },
@@ -46,7 +64,10 @@ export default function CustomerBookingsPage() {
           .order("viewing_date", { ascending: true });
 
         if (bookingsError) throw bookingsError;
-        if (bookingsData) setBookings(bookingsData);
+
+        if (bookingsData) {
+          setBookings(bookingsData as CustomerBooking[]);
+        }
       } catch (err) {
         console.error("Error loading bookings:", err);
       } finally {
@@ -55,16 +76,24 @@ export default function CustomerBookingsPage() {
     }
 
     loadBookings();
-  }, [router, supabase]);
+  }, [router]);
+
+  const today = new Date().toISOString().split("T")[0];
 
   const filteredBookings = bookings.filter((booking) => {
-    const today = new Date().toISOString().split("T")[0];
-
     if (filter === "upcoming") return booking.viewing_date >= today;
     if (filter === "past") return booking.viewing_date < today;
 
     return true;
   });
+
+  const upcomingCount = bookings.filter(
+    (booking) => booking.viewing_date >= today
+  ).length;
+
+  const pastCount = bookings.filter(
+    (booking) => booking.viewing_date < today
+  ).length;
 
   if (loading) {
     return (
@@ -97,37 +126,29 @@ export default function CustomerBookingsPage() {
 
       <div className="max-w-5xl mx-auto px-4 sm:px-8 -mt-6">
         <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 p-6 sm:p-8">
-          {/* Filtre Butonları */}
           <div className="flex gap-2 border-b border-gray-100 pb-6 mb-6">
-            {(["all", "upcoming", "past"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setFilter(tab)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                  filter === tab
-                    ? "bg-[#1c3053] text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)} (
-                  {
-                    tab === "upcoming"
-                      ? bookings.filter(
-                          (b) =>
-                            b.viewing_date >=
-                            new Date().toISOString().split("T")[0]
-                        ).length
-                      : tab === "past"
-                      ? bookings.filter(
-                          (b) =>
-                            b.viewing_date <
-                            new Date().toISOString().split("T")[0]
-                        ).length
-                      : bookings.length
-                  }
-                )
-              </button>
-            ))}
+            {(["all", "upcoming", "past"] as const).map((tab) => {
+              const count =
+                tab === "upcoming"
+                  ? upcomingCount
+                  : tab === "past"
+                    ? pastCount
+                    : bookings.length;
+
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setFilter(tab)}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                    filter === tab
+                      ? "bg-[#1c3053] text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
+                </button>
+              );
+            })}
           </div>
 
           {filteredBookings.length === 0 ? (
@@ -143,6 +164,7 @@ export default function CustomerBookingsPage() {
                   : booking.property;
 
                 const images = property?.images;
+
                 const coverImage =
                   Array.isArray(images) && images.length > 0
                     ? images[0]
@@ -207,9 +229,9 @@ export default function CustomerBookingsPage() {
                           booking.status === "confirmed"
                             ? "bg-green-100 text-green-700"
                             : booking.status === "rejected" ||
-                              booking.status === "cancelled"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-amber-100 text-amber-700"
+                                booking.status === "cancelled"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-amber-100 text-amber-700"
                         }`}
                       >
                         {booking.status === "confirmed" && (

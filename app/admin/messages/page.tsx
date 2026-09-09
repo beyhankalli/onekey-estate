@@ -75,69 +75,203 @@ interface LegacyMessage {
   properties?: Property | Property[] | null;
 }
 
-function normalizeThread(data: any): Thread {
-  const customer = Array.isArray(data?.customer)
-    ? data.customer[0] ?? null
-    : data?.customer ?? null;
+interface RawThread {
+  id?: string | null;
+  customer_id?: string | null;
+  property_id?: string | null;
+  subject?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  customer?: Customer | Customer[] | null;
+  property?: Property | Property[] | null;
+}
 
-  const property = Array.isArray(data?.property)
-    ? data.property[0] ?? null
-    : data?.property ?? null;
+interface RawConversationMessage {
+  id?: string | null;
+  thread_id?: string | null;
+  sender_type?: string | null;
+  sender_admin_user_id?: string | null;
+  message?: string | null;
+  is_read?: boolean | null;
+  created_at?: string | null;
+}
 
+interface RawLegacyMessage {
+  id?: string | null;
+  sender_name?: string | null;
+  sender_email?: string | null;
+  sender_phone?: string | null;
+  message?: string | null;
+  property_id?: string | null;
+  is_read?: boolean | null;
+  is_archived?: boolean | null;
+  created_at?: string | null;
+  properties?: Property | Property[] | null;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function getFirstRelation<T>(
+  value: T | T[] | null | undefined
+): T | null {
+  return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
+function normalizeThread(data: RawThread): Thread {
   return {
-    id: String(data?.id ?? ""),
-    customer_id: data?.customer_id ?? null,
-    property_id: data?.property_id ?? null,
-    subject: data?.subject ?? null,
-    status: data?.status === "closed" ? "closed" : "open",
-    created_at: String(data?.created_at ?? ""),
-    updated_at: String(data?.updated_at ?? data?.created_at ?? ""),
-    customer,
-    property,
+    id: String(data.id ?? ""),
+    customer_id: data.customer_id ?? null,
+    property_id: data.property_id ?? null,
+    subject: data.subject ?? null,
+    status: data.status === "closed" ? "closed" : "open",
+    created_at: String(data.created_at ?? ""),
+    updated_at: String(
+      data.updated_at ?? data.created_at ?? ""
+    ),
+    customer: getFirstRelation(data.customer),
+    property: getFirstRelation(data.property),
   };
 }
 
 function normalizeConversationMessage(
-  data: any
+  data: RawConversationMessage
 ): ConversationMessage {
   return {
-    id: String(data?.id ?? ""),
-    thread_id: String(data?.thread_id ?? ""),
+    id: String(data.id ?? ""),
+    thread_id: String(data.thread_id ?? ""),
     sender_type:
-      data?.sender_type === "customer" ? "customer" : "admin",
-    sender_admin_user_id: data?.sender_admin_user_id ?? null,
-    message: String(data?.message ?? ""),
-    is_read: Boolean(data?.is_read),
-    created_at: String(data?.created_at ?? ""),
+      data.sender_type === "customer" ? "customer" : "admin",
+    sender_admin_user_id:
+      data.sender_admin_user_id ?? null,
+    message: String(data.message ?? ""),
+    is_read: Boolean(data.is_read),
+    created_at: String(data.created_at ?? ""),
   };
 }
 
-function normalizeLegacyMessage(data: any): LegacyMessage {
-  const properties = Array.isArray(data?.properties)
-    ? data.properties[0] ?? null
-    : data?.properties ?? null;
-
+function normalizeLegacyMessage(
+  data: RawLegacyMessage
+): LegacyMessage {
   return {
-    id: String(data?.id ?? ""),
-    sender_name: data?.sender_name ?? null,
-    sender_email: data?.sender_email ?? null,
-    sender_phone: data?.sender_phone ?? null,
-    message: data?.message ?? null,
-    property_id: data?.property_id ?? null,
-    is_read: Boolean(data?.is_read),
-    is_archived: Boolean(data?.is_archived),
-    created_at: String(data?.created_at ?? ""),
-    properties,
+    id: String(data.id ?? ""),
+    sender_name: data.sender_name ?? null,
+    sender_email: data.sender_email ?? null,
+    sender_phone: data.sender_phone ?? null,
+    message: data.message ?? null,
+    property_id: data.property_id ?? null,
+    is_read: Boolean(data.is_read),
+    is_archived: Boolean(data.is_archived),
+    created_at: String(data.created_at ?? ""),
+    properties: getFirstRelation(data.properties),
   };
+}
+
+async function loadMessagesData(
+  sortOrder: "desc" | "asc"
+): Promise<LegacyMessage[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*, properties(title, property_ref)")
+    .order("created_at", {
+      ascending: sortOrder === "asc",
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((message) =>
+    normalizeLegacyMessage(message as RawLegacyMessage)
+  );
+}
+
+async function loadCustomersData(): Promise<Customer[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id, name, email, phone")
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((customer) => ({
+    id: String(customer.id),
+    name: String(customer.name ?? ""),
+    email: customer.email ?? null,
+    phone: customer.phone ?? null,
+  }));
+}
+
+async function loadThreadsData(): Promise<Thread[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("customer_message_threads")
+    .select(
+      "id, customer_id, property_id, subject, status, created_at, updated_at, customer:customers(id, name, email, phone), property:properties(title, property_ref)"
+    )
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((thread) =>
+    normalizeThread(thread as RawThread)
+  );
+}
+
+async function loadConversationMessagesData(
+  threadId: string
+): Promise<ConversationMessage[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("customer_messages")
+    .select(
+      "id, thread_id, sender_type, sender_admin_user_id, message, is_read, created_at"
+    )
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((message) =>
+    normalizeConversationMessage(
+      message as RawConversationMessage
+    )
+  );
 }
 
 export default function AdminMessagesPage() {
   const [messages, setMessages] = useState<LegacyMessage[]>([]);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [conversationMessages, setConversationMessages] = useState<
-    ConversationMessage[]
-  >([]);
+  const [conversationMessages, setConversationMessages] =
+    useState<ConversationMessage[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [loadingThreads, setLoadingThreads] = useState(true);
@@ -150,7 +284,8 @@ export default function AdminMessagesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProperty, setSelectedProperty] =
     useState<string>("all");
-  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  const [sortOrder, setSortOrder] =
+    useState<"desc" | "asc">("desc");
 
   const [selectedThread, setSelectedThread] =
     useState<Thread | null>(null);
@@ -159,114 +294,159 @@ export default function AdminMessagesPage() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [creatingThread, setCreatingThread] = useState(false);
   const [closingThread, setClosingThread] = useState(false);
-  const [loadingConversationMessages, setLoadingConversationMessages] =
-    useState(false);
+  const [
+    loadingConversationMessages,
+    setLoadingConversationMessages,
+  ] = useState(false);
 
   const [newCustomerId, setNewCustomerId] = useState("");
   const [newSubject, setNewSubject] = useState("");
 
-  const supabase = createClient();
+  useEffect(() => {
+    let cancelled = false;
 
-  const fetchMessages = async (showLoading = true) => {
-    if (showLoading) {
-      setLoading(true);
-    }
+    const load = async () => {
+      try {
+        const data = await loadMessagesData(sortOrder);
 
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*, properties(title, property_ref)")
-      .order("created_at", { ascending: sortOrder === "asc" });
+        if (!cancelled) {
+          setMessages(data);
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          console.error("Error fetching messages:", error);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
 
-    if (error) {
-      console.error("Error fetching messages:", error);
-    } else {
-      setMessages((data ?? []).map(normalizeLegacyMessage));
-    }
+    void load();
 
-    if (showLoading) {
-      setLoading(false);
-    }
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [sortOrder]);
 
-  const fetchCustomers = async () => {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, name, email, phone")
-      .order("name", { ascending: true });
+  useEffect(() => {
+    let cancelled = false;
 
-    if (error) {
-      console.error("Error fetching customers:", error);
+    const load = async () => {
+      try {
+        const [threadData, customerData] = await Promise.all([
+          loadThreadsData(),
+          loadCustomersData(),
+        ]);
+
+        if (!cancelled) {
+          setThreads(threadData);
+          setCustomers(customerData);
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          console.error(
+            "Error fetching conversations/customers:",
+            error
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingThreads(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedThread) {
       return;
     }
 
-    setCustomers(
-      (data ?? []).map((customer) => ({
-        id: String(customer.id),
-        name: String(customer.name ?? ""),
-        email: customer.email ?? null,
-        phone: customer.phone ?? null,
-      }))
-    );
-  };
+    let cancelled = false;
 
-  const fetchThreads = async (showLoading = true) => {
-    if (showLoading) {
-      setLoadingThreads(true);
-    }
-
-    const { data, error } = await supabase
-      .from("customer_message_threads")
-      .select(
-        "id, customer_id, property_id, subject, status, created_at, updated_at, customer:customers(id, name, email, phone), property:properties(title, property_ref)"
-      )
-      .order("updated_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching message threads:", error);
-    } else {
-      setThreads((data ?? []).map(normalizeThread));
-    }
-
-    if (showLoading) {
-      setLoadingThreads(false);
-    }
-  };
-
-  const fetchConversationMessages = async (
-    threadId: string,
-    showLoading = true
-  ) => {
-    if (showLoading) {
+    const load = async () => {
       setLoadingConversationMessages(true);
+
+      try {
+        const data = await loadConversationMessagesData(
+          selectedThread.id
+        );
+
+        if (!cancelled) {
+          setConversationMessages(data);
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          console.error(
+            "Error fetching conversation messages:",
+            error
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingConversationMessages(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedThread]);
+
+  const refreshMessages = async () => {
+    try {
+      const data = await loadMessagesData(sortOrder);
+      setMessages(data);
+    } catch (error: unknown) {
+      console.error("Error refreshing messages:", error);
     }
+  };
 
-    const { data, error } = await supabase
-      .from("customer_messages")
-      .select(
-        "id, thread_id, sender_type, sender_admin_user_id, message, is_read, created_at"
-      )
-      .eq("thread_id", threadId)
-      .order("created_at", { ascending: true });
-
-    if (error) {
+  const refreshThreads = async () => {
+    try {
+      const data = await loadThreadsData();
+      setThreads(data);
+    } catch (error: unknown) {
       console.error(
-        "Error fetching conversation messages:",
+        "Error refreshing message threads:",
         error
       );
-
-      if (showLoading) {
-        setLoadingConversationMessages(false);
-      }
-
-      return;
     }
+  };
 
-    setConversationMessages(
-      (data ?? []).map(normalizeConversationMessage)
-    );
+  const refreshCustomers = async () => {
+    try {
+      const data = await loadCustomersData();
+      setCustomers(data);
+    } catch (error: unknown) {
+      console.error("Error refreshing customers:", error);
+    }
+  };
 
-    if (showLoading) {
-      setLoadingConversationMessages(false);
+  const refreshConversationMessages = async (
+    threadId: string
+  ) => {
+    try {
+      const data = await loadConversationMessagesData(
+        threadId
+      );
+      setConversationMessages(data);
+    } catch (error: unknown) {
+      console.error(
+        "Error refreshing conversation messages:",
+        error
+      );
     }
   };
 
@@ -274,41 +454,30 @@ export default function AdminMessagesPage() {
     setRefreshing(true);
 
     try {
-      await Promise.all([
-        fetchMessages(false),
-        fetchThreads(false),
-        fetchCustomers(),
-      ]);
+      const refreshTasks: Promise<void>[] = [
+        refreshMessages(),
+        refreshThreads(),
+        refreshCustomers(),
+      ];
 
       if (selectedThread) {
-        await fetchConversationMessages(selectedThread.id, false);
+        refreshTasks.push(
+          refreshConversationMessages(selectedThread.id)
+        );
       }
+
+      await Promise.all(refreshTasks);
     } finally {
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchMessages();
-  }, [sortOrder]);
-
-  useEffect(() => {
-    fetchThreads();
-    fetchCustomers();
-  }, []);
-
-  useEffect(() => {
-    if (selectedThread) {
-      fetchConversationMessages(selectedThread.id);
-    } else {
-      setConversationMessages([]);
-    }
-  }, [selectedThread]);
-
   const toggleReadStatus = async (
     id: string,
     currentStatus: boolean
   ) => {
+    const supabase = createClient();
+
     const { error } = await supabase
       .from("messages")
       .update({ is_read: !currentStatus })
@@ -332,20 +501,28 @@ export default function AdminMessagesPage() {
     id: string,
     currentStatus: boolean
   ) => {
+    const supabase = createClient();
+
     const { error } = await supabase
       .from("messages")
       .update({ is_archived: !currentStatus })
       .eq("id", id);
 
     if (error) {
-      console.error("Error updating archive status:", error);
+      console.error(
+        "Error updating archive status:",
+        error
+      );
       return;
     }
 
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === id
-          ? { ...msg, is_archived: !currentStatus }
+          ? {
+              ...msg,
+              is_archived: !currentStatus,
+            }
           : msg
       )
     );
@@ -360,17 +537,23 @@ export default function AdminMessagesPage() {
       return;
     }
 
+    const supabase = createClient();
+
     const { error } = await supabase
       .from("messages")
       .delete()
       .eq("id", id);
 
     if (error) {
-      alert("Unable to delete message: " + error.message);
+      alert(
+        "Unable to delete message: " + error.message
+      );
       return;
     }
 
-    setMessages((prev) => prev.filter((msg) => msg.id !== id));
+    setMessages((prev) =>
+      prev.filter((msg) => msg.id !== id)
+    );
   };
 
   const createConversation = async () => {
@@ -382,6 +565,8 @@ export default function AdminMessagesPage() {
     setCreatingThread(true);
 
     try {
+      const supabase = createClient();
+
       const { data, error } = await supabase
         .from("customer_message_threads")
         .insert({
@@ -396,7 +581,8 @@ export default function AdminMessagesPage() {
 
       if (error) {
         alert(
-          "Unable to create conversation: " + error.message
+          "Unable to create conversation: " +
+            error.message
         );
         return;
       }
@@ -406,12 +592,19 @@ export default function AdminMessagesPage() {
         return;
       }
 
-      const newThread = normalizeThread(data);
+      const newThread = normalizeThread(
+        data as RawThread
+      );
 
       setThreads((prev) => [newThread, ...prev]);
       setSelectedThread(newThread);
       setNewCustomerId("");
       setNewSubject("");
+    } catch (error: unknown) {
+      alert(
+        "Unable to create conversation: " +
+          getErrorMessage(error)
+      );
     } finally {
       setCreatingThread(false);
     }
@@ -429,6 +622,8 @@ export default function AdminMessagesPage() {
     setSendingMessage(true);
 
     try {
+      const supabase = createClient();
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -457,14 +652,18 @@ export default function AdminMessagesPage() {
         .single();
 
       if (error) {
-        alert("Unable to send message: " + error.message);
+        alert(
+          "Unable to send message: " + error.message
+        );
         return;
       }
 
       if (data) {
         setConversationMessages((prev) => [
           ...prev,
-          normalizeConversationMessage(data),
+          normalizeConversationMessage(
+            data as RawConversationMessage
+          ),
         ]);
       }
 
@@ -488,7 +687,10 @@ export default function AdminMessagesPage() {
         prev
           .map((thread) =>
             thread.id === selectedThread.id
-              ? { ...thread, updated_at: now }
+              ? {
+                  ...thread,
+                  updated_at: now,
+                }
               : thread
           )
           .sort(
@@ -519,11 +721,14 @@ export default function AdminMessagesPage() {
     }
 
     const newStatus: "open" | "closed" =
-      selectedThread.status === "open" ? "closed" : "open";
+      selectedThread.status === "open"
+        ? "closed"
+        : "open";
 
     setClosingThread(true);
 
     try {
+      const supabase = createClient();
       const now = new Date().toISOString();
 
       const { error } = await supabase
@@ -536,7 +741,8 @@ export default function AdminMessagesPage() {
 
       if (error) {
         alert(
-          "Unable to update conversation: " + error.message
+          "Unable to update conversation: " +
+            error.message
         );
         return;
       }
@@ -581,6 +787,8 @@ export default function AdminMessagesPage() {
       return;
     }
 
+    const supabase = createClient();
+
     const { error } = await supabase
       .from("customer_messages")
       .update({ is_read: true })
@@ -600,7 +808,10 @@ export default function AdminMessagesPage() {
       prev.map((message) =>
         message.thread_id === threadId &&
         message.sender_type === "customer"
-          ? { ...message, is_read: true }
+          ? {
+              ...message,
+              is_read: true,
+            }
           : message
       )
     );
@@ -612,7 +823,7 @@ export default function AdminMessagesPage() {
       conversationMessages.length > 0 &&
       activeTab === "conversations"
     ) {
-      markCustomerMessagesAsRead(selectedThread.id);
+      void markCustomerMessagesAsRead(selectedThread.id);
     }
   }, [
     selectedThread,
@@ -645,7 +856,11 @@ export default function AdminMessagesPage() {
         selectedProperty === "all" ||
         msg.property_id === selectedProperty;
 
-      return matchesTab && matchesSearch && matchesProperty;
+      return (
+        matchesTab &&
+        matchesSearch &&
+        matchesProperty
+      );
     });
   }, [
     messages,
@@ -662,13 +877,10 @@ export default function AdminMessagesPage() {
     }
 
     return threads.filter((thread) => {
-      const customer = Array.isArray(thread.customer)
-        ? thread.customer[0]
-        : thread.customer;
-
-      const property = Array.isArray(thread.property)
-        ? thread.property[0]
-        : thread.property;
+      const customer = getFirstRelation(
+        thread.customer
+      );
+      const property = getFirstRelation(thread.property);
 
       return (
         customer?.name?.toLowerCase().includes(query) ||
@@ -676,7 +888,9 @@ export default function AdminMessagesPage() {
         customer?.phone?.toLowerCase().includes(query) ||
         thread.subject?.toLowerCase().includes(query) ||
         property?.title?.toLowerCase().includes(query) ||
-        property?.property_ref?.toLowerCase().includes(query)
+        property?.property_ref
+          ?.toLowerCase()
+          .includes(query)
       );
     });
   }, [threads, threadSearch]);
@@ -689,9 +903,9 @@ export default function AdminMessagesPage() {
         return;
       }
 
-      const property = Array.isArray(message.properties)
-        ? message.properties[0]
-        : message.properties;
+      const property = getFirstRelation(
+        message.properties
+      );
 
       if (property) {
         map.set(message.property_id, property);
@@ -712,19 +926,17 @@ export default function AdminMessagesPage() {
 
   const openThreadCount = useMemo(
     () =>
-      threads.filter((thread) => thread.status === "open").length,
+      threads.filter(
+        (thread) => thread.status === "open"
+      ).length,
     [threads]
   );
 
   const getCustomer = (thread: Thread) =>
-    Array.isArray(thread.customer)
-      ? thread.customer[0]
-      : thread.customer;
+    getFirstRelation(thread.customer);
 
   const getProperty = (thread: Thread) =>
-    Array.isArray(thread.property)
-      ? thread.property[0]
-      : thread.property;
+    getFirstRelation(thread.property);
 
   const selectedCustomer = selectedThread
     ? getCustomer(selectedThread)
@@ -753,7 +965,8 @@ export default function AdminMessagesPage() {
         </div>
 
         <button
-          onClick={refreshAll}
+          type="button"
+          onClick={() => void refreshAll()}
           disabled={refreshing}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh messages and conversations"
@@ -801,6 +1014,7 @@ export default function AdminMessagesPage() {
 
       <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
         <button
+          type="button"
           onClick={() => setActiveTab("inbox")}
           className={`pb-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
             activeTab === "inbox"
@@ -809,10 +1023,12 @@ export default function AdminMessagesPage() {
           }`}
         >
           <MailOpen className="w-4 h-4" />
-          Inbox ({messages.filter((m) => !m.is_archived).length})
+          Inbox (
+          {messages.filter((m) => !m.is_archived).length})
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab("archived")}
           className={`pb-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
             activeTab === "archived"
@@ -821,11 +1037,15 @@ export default function AdminMessagesPage() {
           }`}
         >
           <Archive className="w-4 h-4" />
-          Archived ({messages.filter((m) => m.is_archived).length})
+          Archived (
+          {messages.filter((m) => m.is_archived).length})
         </button>
 
         <button
-          onClick={() => setActiveTab("conversations")}
+          type="button"
+          onClick={() =>
+            setActiveTab("conversations")
+          }
           className={`pb-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
             activeTab === "conversations"
               ? "border-[#ae884e] text-[#1c3053]"
@@ -847,7 +1067,9 @@ export default function AdminMessagesPage() {
                 type="text"
                 placeholder="Search by name, email, phone or message..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) =>
+                  setSearchTerm(e.target.value)
+                }
                 className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ae884e]/20 focus:border-[#ae884e] transition-all text-gray-900 placeholder-gray-400"
               />
             </div>
@@ -863,20 +1085,27 @@ export default function AdminMessagesPage() {
                   }
                   className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-[#ae884e]/20 focus:border-[#ae884e] text-gray-900 bg-white"
                 >
-                  <option value="all">All Properties</option>
+                  <option value="all">
+                    All Properties
+                  </option>
 
-                  {uniqueProperties.map(([id, property]) => (
-                    <option key={id} value={id}>
-                      {property.title}
-                    </option>
-                  ))}
+                  {uniqueProperties.map(
+                    ([id, property]) => (
+                      <option key={id} value={id}>
+                        {property.title}
+                      </option>
+                    )
+                  )}
                 </select>
               </div>
 
               <button
+                type="button"
                 onClick={() =>
                   setSortOrder(
-                    sortOrder === "desc" ? "asc" : "desc"
+                    sortOrder === "desc"
+                      ? "asc"
+                      : "desc"
                   )
                 }
                 className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-700 transition-colors shrink-0"
@@ -885,7 +1114,9 @@ export default function AdminMessagesPage() {
                 <ArrowUpDown className="w-4 h-4" />
 
                 <span className="hidden sm:inline">
-                  {sortOrder === "desc" ? "Newest" : "Oldest"}
+                  {sortOrder === "desc"
+                    ? "Newest"
+                    : "Oldest"}
                 </span>
               </button>
             </div>
@@ -912,15 +1143,16 @@ export default function AdminMessagesPage() {
           ) : (
             <div className="grid gap-4">
               {filteredMessages.map((msg) => {
-                const property = Array.isArray(msg.properties)
-                  ? msg.properties[0]
-                  : msg.properties;
+                const property = getFirstRelation(
+                  msg.properties
+                );
 
                 return (
                   <div
                     key={msg.id}
                     className={`p-6 rounded-2xl border transition-all ${
-                      !msg.is_read && activeTab === "inbox"
+                      !msg.is_read &&
+                      activeTab === "inbox"
                         ? "bg-amber-50/40 border-amber-200 shadow-sm"
                         : "bg-white border-gray-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-md"
                     }`}
@@ -935,7 +1167,8 @@ export default function AdminMessagesPage() {
                           )}
 
                           <span>
-                            {msg.sender_name || "Unknown Sender"}
+                            {msg.sender_name ||
+                              "Unknown Sender"}
                           </span>
 
                           {!msg.is_read && (
@@ -976,8 +1209,9 @@ export default function AdminMessagesPage() {
 
                       <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                         <button
+                          type="button"
                           onClick={() =>
-                            toggleReadStatus(
+                            void toggleReadStatus(
                               msg.id,
                               msg.is_read
                             )
@@ -997,8 +1231,9 @@ export default function AdminMessagesPage() {
                         </button>
 
                         <button
+                          type="button"
                           onClick={() =>
-                            toggleArchiveStatus(
+                            void toggleArchiveStatus(
                               msg.id,
                               msg.is_archived
                             )
@@ -1022,7 +1257,10 @@ export default function AdminMessagesPage() {
                         </button>
 
                         <button
-                          onClick={() => handleDelete(msg.id)}
+                          type="button"
+                          onClick={() =>
+                            void handleDelete(msg.id)
+                          }
                           className="p-2 bg-white border border-gray-200 rounded-xl text-gray-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors shadow-sm"
                           title="Delete Permanently"
                         >
@@ -1052,14 +1290,16 @@ export default function AdminMessagesPage() {
                           )}
 
                           <span className="text-gray-400 ml-1">
-                            (Ref: {property.property_ref})
+                            (Ref:{" "}
+                            {property.property_ref})
                           </span>
                         </span>
                       </div>
                     )}
 
                     <div className="bg-white p-5 rounded-xl border border-gray-100 text-gray-800 whitespace-pre-wrap font-light text-sm md:text-base leading-relaxed">
-                      {msg.message || "No message content."}
+                      {msg.message ||
+                        "No message content."}
                     </div>
 
                     <p className="text-xs text-gray-400 mt-4 text-right">
@@ -1083,6 +1323,7 @@ export default function AdminMessagesPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden">
             <div className="p-4 border-b border-gray-100">
               <button
+                type="button"
                 onClick={() => {
                   setSelectedThread(null);
                   setNewCustomerId("");
@@ -1125,13 +1366,18 @@ export default function AdminMessagesPage() {
                 </div>
               ) : (
                 filteredThreads.map((thread) => {
-                  const customer = getCustomer(thread);
-                  const property = getProperty(thread);
+                  const customer =
+                    getCustomer(thread);
+                  const property =
+                    getProperty(thread);
 
                   return (
                     <button
+                      type="button"
                       key={thread.id}
-                      onClick={() => setSelectedThread(thread)}
+                      onClick={() =>
+                        setSelectedThread(thread)
+                      }
                       className={`w-full text-left p-4 border-b border-gray-100 transition-colors ${
                         selectedThread?.id === thread.id
                           ? "bg-[#1c3053]/5 border-l-4 border-l-[#ae884e]"
@@ -1194,8 +1440,8 @@ export default function AdminMessagesPage() {
                     </h2>
 
                     <p className="text-sm text-gray-500 mt-1">
-                      Select a customer and create a conversation
-                      thread.
+                      Select a customer and create a
+                      conversation thread.
                     </p>
                   </div>
 
@@ -1211,7 +1457,9 @@ export default function AdminMessagesPage() {
                         <select
                           value={newCustomerId}
                           onChange={(e) =>
-                            setNewCustomerId(e.target.value)
+                            setNewCustomerId(
+                              e.target.value
+                            )
                           }
                           className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ae884e]/20 focus:border-[#ae884e]"
                         >
@@ -1219,17 +1467,19 @@ export default function AdminMessagesPage() {
                             Select customer...
                           </option>
 
-                          {customers.map((customer) => (
-                            <option
-                              key={customer.id}
-                              value={customer.id}
-                            >
-                              {customer.name}
-                              {customer.email
-                                ? ` — ${customer.email}`
-                                : ""}
-                            </option>
-                          ))}
+                          {customers.map(
+                            (customer) => (
+                              <option
+                                key={customer.id}
+                                value={customer.id}
+                              >
+                                {customer.name}
+                                {customer.email
+                                  ? ` — ${customer.email}`
+                                  : ""}
+                              </option>
+                            )
+                          )}
                         </select>
                       </div>
                     </div>
@@ -1251,9 +1501,13 @@ export default function AdminMessagesPage() {
                     </div>
 
                     <button
-                      onClick={createConversation}
+                      type="button"
+                      onClick={() =>
+                        void createConversation()
+                      }
                       disabled={
-                        creatingThread || customers.length === 0
+                        creatingThread ||
+                        customers.length === 0
                       }
                       className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1c3053] hover:bg-[#ae884e] text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
                     >
@@ -1272,7 +1526,8 @@ export default function AdminMessagesPage() {
 
                     {customers.length === 0 && (
                       <p className="text-xs text-gray-400 text-center">
-                        No customers are currently available.
+                        No customers are currently
+                        available.
                       </p>
                     )}
                   </div>
@@ -1292,7 +1547,8 @@ export default function AdminMessagesPage() {
 
                       <span
                         className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${
-                          selectedThread.status === "open"
+                          selectedThread.status ===
+                          "open"
                             ? "bg-green-100 text-green-700"
                             : "bg-gray-100 text-gray-500"
                         }`}
@@ -1335,7 +1591,10 @@ export default function AdminMessagesPage() {
 
                   <div className="flex items-center gap-2 shrink-0">
                     <button
-                      onClick={toggleThreadStatus}
+                      type="button"
+                      onClick={() =>
+                        void toggleThreadStatus()
+                      }
                       disabled={closingThread}
                       className={`p-2 rounded-xl border transition-colors ${
                         selectedThread.status === "open"
@@ -1350,7 +1609,8 @@ export default function AdminMessagesPage() {
                     >
                       {closingThread ? (
                         <span className="block w-4 h-4 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
-                      ) : selectedThread.status === "open" ? (
+                      ) : selectedThread.status ===
+                        "open" ? (
                         <Lock className="w-4 h-4" />
                       ) : (
                         <Unlock className="w-4 h-4" />
@@ -1358,7 +1618,10 @@ export default function AdminMessagesPage() {
                     </button>
 
                     <button
-                      onClick={() => setSelectedThread(null)}
+                      type="button"
+                      onClick={() =>
+                        setSelectedThread(null)
+                      }
                       className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50"
                       title="Close"
                     >
@@ -1382,51 +1645,61 @@ export default function AdminMessagesPage() {
                         <div className="h-16 w-2/5 bg-white border border-gray-100 rounded-2xl animate-pulse" />
                       </div>
                     </div>
-                  ) : conversationMessages.length === 0 ? (
+                  ) : conversationMessages.length ===
+                    0 ? (
                     <div className="h-full flex items-center justify-center text-sm text-gray-400 text-center">
-                      No messages in this conversation yet.
+                      No messages in this conversation
+                      yet.
                     </div>
                   ) : (
-                    conversationMessages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${
-                          message.sender_type === "admin"
-                            ? "justify-end"
-                            : "justify-start"
-                        }`}
-                      >
+                    conversationMessages.map(
+                      (message) => (
                         <div
-                          className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                            message.sender_type === "admin"
-                              ? "bg-[#1c3053] text-white rounded-br-md"
-                              : "bg-white border border-gray-200 text-gray-800 rounded-bl-md"
+                          key={message.id}
+                          className={`flex ${
+                            message.sender_type ===
+                            "admin"
+                              ? "justify-end"
+                              : "justify-start"
                           }`}
                         >
-                          <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                            {message.message}
-                          </p>
-
-                          <p
-                            className={`text-[10px] mt-2 ${
-                              message.sender_type === "admin"
-                                ? "text-white/60"
-                                : "text-gray-400"
+                          <div
+                            className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                              message.sender_type ===
+                              "admin"
+                                ? "bg-[#1c3053] text-white rounded-br-md"
+                                : "bg-white border border-gray-200 text-gray-800 rounded-bl-md"
                             }`}
                           >
-                            {message.sender_type === "admin"
-                              ? "Admin"
-                              : "Customer"}{" "}
-                            ·{" "}
-                            {message.created_at
-                              ? new Date(
-                                  message.created_at
-                                ).toLocaleString("en-GB")
-                              : "Unknown"}
-                          </p>
+                            <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                              {message.message}
+                            </p>
+
+                            <p
+                              className={`text-[10px] mt-2 ${
+                                message.sender_type ===
+                                "admin"
+                                  ? "text-white/60"
+                                  : "text-gray-400"
+                              }`}
+                            >
+                              {message.sender_type ===
+                              "admin"
+                                ? "Admin"
+                                : "Customer"}{" "}
+                              ·{" "}
+                              {message.created_at
+                                ? new Date(
+                                    message.created_at
+                                  ).toLocaleString(
+                                    "en-GB"
+                                  )
+                                : "Unknown"}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      )
+                    )
                   )}
                 </div>
 
@@ -1443,12 +1716,13 @@ export default function AdminMessagesPage() {
                           !e.shiftKey
                         ) {
                           e.preventDefault();
-                          sendConversationMessage();
+                          void sendConversationMessage();
                         }
                       }}
                       disabled={
                         sendingMessage ||
-                        selectedThread.status === "closed"
+                        selectedThread.status ===
+                          "closed"
                       }
                       rows={3}
                       placeholder={
@@ -1460,11 +1734,15 @@ export default function AdminMessagesPage() {
                     />
 
                     <button
-                      onClick={sendConversationMessage}
+                      type="button"
+                      onClick={() =>
+                        void sendConversationMessage()
+                      }
                       disabled={
                         sendingMessage ||
                         !messageText.trim() ||
-                        selectedThread.status === "closed"
+                        selectedThread.status ===
+                          "closed"
                       }
                       className="self-end p-3 bg-[#1c3053] hover:bg-[#ae884e] text-white rounded-xl transition-colors disabled:opacity-40"
                       title="Send Message"
@@ -1479,10 +1757,10 @@ export default function AdminMessagesPage() {
 
                   <div className="flex items-center justify-between gap-3 mt-2">
                     <p className="text-[11px] text-gray-400">
-                      Customer communication is stored in the
-                      conversation history. External email delivery
-                      will be connected to the company email system
-                      later.
+                      Customer communication is stored in
+                      the conversation history. External
+                      email delivery will be connected to
+                      the company email system later.
                     </p>
 
                     <span className="text-[11px] text-gray-300 shrink-0 hidden sm:block">

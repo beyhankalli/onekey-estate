@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -42,6 +42,23 @@ type Application = {
   move_in_date: string | null;
   monthly_rent: number | null;
   deposit_amount: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  customer?: Customer | Customer[] | null;
+  property?: Property | Property[] | null;
+  agent?: Agent | Agent[] | null;
+};
+
+type RawApplication = {
+  id: string;
+  customer_id: string;
+  property_id: string;
+  agent_id: string | null;
+  status: unknown;
+  move_in_date: string | null;
+  monthly_rent: number | string | null;
+  deposit_amount: number | string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -158,7 +175,9 @@ function formatDateTime(value: string) {
 }
 
 function formatMoney(value: number | null) {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
 
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -167,7 +186,17 @@ function formatMoney(value: number | null) {
   }).format(value);
 }
 
-function normalizeApplication(raw: any): Application {
+function normalizeApplication(raw: RawApplication): Application {
+  const monthlyRent =
+    raw.monthly_rent === null || raw.monthly_rent === undefined
+      ? null
+      : Number(raw.monthly_rent);
+
+  const depositAmount =
+    raw.deposit_amount === null || raw.deposit_amount === undefined
+      ? null
+      : Number(raw.deposit_amount);
+
   return {
     id: raw.id,
     customer_id: raw.customer_id,
@@ -175,14 +204,8 @@ function normalizeApplication(raw: any): Application {
     agent_id: raw.agent_id ?? null,
     status: normalizeStatus(raw.status),
     move_in_date: raw.move_in_date ?? null,
-    monthly_rent:
-      raw.monthly_rent === null || raw.monthly_rent === undefined
-        ? null
-        : Number(raw.monthly_rent),
-    deposit_amount:
-      raw.deposit_amount === null || raw.deposit_amount === undefined
-        ? null
-        : Number(raw.deposit_amount),
+    monthly_rent: Number.isFinite(monthlyRent) ? monthlyRent : null,
+    deposit_amount: Number.isFinite(depositAmount) ? depositAmount : null,
     notes: raw.notes ?? null,
     created_at: raw.created_at,
     updated_at: raw.updated_at,
@@ -192,9 +215,109 @@ function normalizeApplication(raw: any): Application {
   };
 }
 
-export default function ApplicationsPage() {
+async function loadApplicationsData() {
   const supabase = createClient();
 
+  const [
+    applicationsResult,
+    customersResult,
+    propertiesResult,
+    agentsResult,
+  ] = await Promise.all([
+    supabase
+      .from("applications")
+      .select(`
+        id,
+        customer_id,
+        property_id,
+        agent_id,
+        status,
+        move_in_date,
+        monthly_rent,
+        deposit_amount,
+        notes,
+        created_at,
+        updated_at,
+        customer:customers(
+          id,
+          name,
+          email,
+          phone
+        ),
+        property:properties(
+          id,
+          title,
+          property_ref,
+          monthly_rent
+        ),
+        agent:agents(
+          id,
+          name,
+          email
+        )
+      `)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("customers")
+      .select("id, name, email, phone")
+      .order("name"),
+
+    supabase
+      .from("properties")
+      .select("id, title, property_ref, monthly_rent")
+      .order("title"),
+
+    supabase
+      .from("agents")
+      .select("id, name, email")
+      .order("name"),
+  ]);
+
+  if (applicationsResult.error) {
+    throw applicationsResult.error;
+  }
+
+  if (customersResult.error) {
+    throw customersResult.error;
+  }
+
+  if (propertiesResult.error) {
+    throw propertiesResult.error;
+  }
+
+  if (agentsResult.error) {
+    throw agentsResult.error;
+  }
+
+  return {
+    applications: (applicationsResult.data ?? []).map((item) =>
+      normalizeApplication(item as unknown as RawApplication)
+    ),
+    customers: (customersResult.data ?? []) as Customer[],
+    properties: (propertiesResult.data ?? []) as Property[],
+    agents: (agentsResult.data ?? []) as Agent[],
+  };
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message || fallback;
+  }
+
+  return fallback;
+}
+
+export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -212,9 +335,9 @@ export default function ApplicationsPage() {
   const [detailError, setDetailError] = useState("");
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | ApplicationStatus>(
-    "all"
-  );
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | ApplicationStatus
+  >("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
 
   const [showCreate, setShowCreate] = useState(false);
@@ -231,99 +354,56 @@ export default function ApplicationsPage() {
     useState<ApplicationStatus>("submitted");
   const [statusNote, setStatusNote] = useState("");
 
-  const loadData = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadInitialData = async () => {
+      try {
+        const data = await loadApplicationsData();
+
+        if (cancelled) return;
+
+        setApplications(data.applications);
+        setCustomers(data.customers);
+        setProperties(data.properties);
+        setAgents(data.agents);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(
+            getErrorMessage(err, "Failed to load applications.")
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadInitialData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const refreshData = async () => {
     setLoading(true);
     setError("");
 
     try {
-      const [
-        applicationsResult,
-        customersResult,
-        propertiesResult,
-        agentsResult,
-      ] = await Promise.all([
-        supabase
-          .from("applications")
-          .select(`
-            id,
-            customer_id,
-            property_id,
-            agent_id,
-            status,
-            move_in_date,
-            monthly_rent,
-            deposit_amount,
-            notes,
-            created_at,
-            updated_at,
-            customer:customers(
-              id,
-              name,
-              email,
-              phone
-            ),
-            property:properties(
-              id,
-              title,
-              property_ref,
-              monthly_rent
-            ),
-            agent:agents(
-              id,
-              name,
-              email
-            )
-          `)
-          .order("created_at", { ascending: false }),
+      const data = await loadApplicationsData();
 
-        supabase
-          .from("customers")
-          .select("id, name, email, phone")
-          .order("name"),
-
-        supabase
-          .from("properties")
-          .select("id, title, property_ref, monthly_rent")
-          .order("title"),
-
-        supabase
-          .from("agents")
-          .select("id, name, email")
-          .order("name"),
-      ]);
-
-      if (applicationsResult.error) {
-        throw applicationsResult.error;
-      }
-
-      if (customersResult.error) {
-        throw customersResult.error;
-      }
-
-      if (propertiesResult.error) {
-        throw propertiesResult.error;
-      }
-
-      if (agentsResult.error) {
-        throw agentsResult.error;
-      }
-
-      setApplications(
-        (applicationsResult.data ?? []).map(normalizeApplication)
-      );
-      setCustomers((customersResult.data ?? []) as Customer[]);
-      setProperties((propertiesResult.data ?? []) as Property[]);
-      setAgents((agentsResult.data ?? []) as Agent[]);
-    } catch (err: any) {
-      setError(err?.message || "Failed to load applications.");
+      setApplications(data.applications);
+      setCustomers(data.customers);
+      setProperties(data.properties);
+      setAgents(data.agents);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to load applications."));
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  };
 
   const filteredApplications = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -386,6 +466,8 @@ export default function ApplicationsPage() {
     setHistory([]);
     setDetailLoading(true);
 
+    const supabase = createClient();
+
     try {
       const { data, error: historyError } = await supabase
         .from("application_status_history")
@@ -400,8 +482,10 @@ export default function ApplicationsPage() {
       }
 
       setHistory((data ?? []) as StatusHistory[]);
-    } catch (err: any) {
-      setDetailError(err?.message || "Failed to load application history.");
+    } catch (err: unknown) {
+      setDetailError(
+        getErrorMessage(err, "Failed to load application history.")
+      );
     } finally {
       setDetailLoading(false);
     }
@@ -417,6 +501,8 @@ export default function ApplicationsPage() {
     setError("");
 
     try {
+      const supabase = createClient();
+
       const property = properties.find(
         (item) => item.id === newPropertyId
       );
@@ -491,7 +577,9 @@ export default function ApplicationsPage() {
         throw insertError;
       }
 
-      const created = normalizeApplication(data);
+      const created = normalizeApplication(
+        data as unknown as RawApplication
+      );
 
       setApplications((current) => [created, ...current]);
       setShowCreate(false);
@@ -503,8 +591,10 @@ export default function ApplicationsPage() {
       setNewMonthlyRent("");
       setNewDeposit("");
       setNewNotes("");
-    } catch (err: any) {
-      setError(err?.message || "Failed to create application.");
+    } catch (err: unknown) {
+      setError(
+        getErrorMessage(err, "Failed to create application.")
+      );
     } finally {
       setSaving(false);
     }
@@ -521,11 +611,14 @@ export default function ApplicationsPage() {
     setDetailError("");
 
     try {
+      const supabase = createClient();
+      const updatedAt = new Date().toISOString();
+
       const { error: updateError } = await supabase
         .from("applications")
         .update({
           status: newStatus,
-          updated_at: new Date().toISOString(),
+          updated_at: updatedAt,
         })
         .eq("id", selectedApplication.id);
 
@@ -534,21 +627,32 @@ export default function ApplicationsPage() {
       }
 
       if (statusNote.trim()) {
-        const { data: currentUserData } = await supabase.auth.getUser();
+        const { data: currentUserData, error: currentUserError } =
+          await supabase.auth.getUser();
 
-        await supabase.from("application_status_history").insert({
-          application_id: selectedApplication.id,
-          old_status: selectedApplication.status,
-          new_status: newStatus,
-          changed_by: currentUserData.user?.id ?? null,
-          note: statusNote.trim(),
-        });
+        if (currentUserError) {
+          throw currentUserError;
+        }
+
+        const { error: historyInsertError } = await supabase
+          .from("application_status_history")
+          .insert({
+            application_id: selectedApplication.id,
+            old_status: selectedApplication.status,
+            new_status: newStatus,
+            changed_by: currentUserData.user?.id ?? null,
+            note: statusNote.trim(),
+          });
+
+        if (historyInsertError) {
+          throw historyInsertError;
+        }
       }
 
       const updatedApplication: Application = {
         ...selectedApplication,
         status: newStatus,
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
       };
 
       setSelectedApplication(updatedApplication);
@@ -563,17 +667,26 @@ export default function ApplicationsPage() {
 
       setStatusNote("");
 
-      const { data: historyData } = await supabase
+      const {
+        data: historyData,
+        error: historyFetchError,
+      } = await supabase
         .from("application_status_history")
         .select(
           "id, application_id, old_status, new_status, changed_by, note, created_at"
         )
-        .eq("application_id", selectedApplication.id)
+        .eq("application_id", updatedApplication.id)
         .order("created_at", { ascending: false });
 
+      if (historyFetchError) {
+        throw historyFetchError;
+      }
+
       setHistory((historyData ?? []) as StatusHistory[]);
-    } catch (err: any) {
-      setDetailError(err?.message || "Failed to update application.");
+    } catch (err: unknown) {
+      setDetailError(
+        getErrorMessage(err, "Failed to update application.")
+      );
     } finally {
       setSaving(false);
     }
@@ -608,7 +721,8 @@ export default function ApplicationsPage() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={loadData}
+                type="button"
+                onClick={refreshData}
                 disabled={loading}
                 className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -616,6 +730,7 @@ export default function ApplicationsPage() {
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   setError("");
                   setShowCreate(true);
@@ -646,6 +761,7 @@ export default function ApplicationsPage() {
             ["Approved", counts.approved, "approved"],
           ].map(([label, count, filter]) => (
             <button
+              type="button"
               key={String(label)}
               onClick={() =>
                 setStatusFilter(filter as "all" | ApplicationStatus)
@@ -763,7 +879,7 @@ export default function ApplicationsPage() {
                     return (
                       <tr
                         key={application.id}
-                        onClick={() => openApplication(application)}
+                        onClick={() => void openApplication(application)}
                         className="cursor-pointer transition hover:bg-gray-50"
                       >
                         <td className="px-4 py-4">
@@ -834,6 +950,7 @@ export default function ApplicationsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => setShowCreate(false)}
                 className="rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
               >
@@ -968,6 +1085,7 @@ export default function ApplicationsPage() {
 
             <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
               <button
+                type="button"
                 onClick={() => setShowCreate(false)}
                 className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
@@ -975,7 +1093,8 @@ export default function ApplicationsPage() {
               </button>
 
               <button
-                onClick={createApplication}
+                type="button"
+                onClick={() => void createApplication()}
                 disabled={saving}
                 className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -1005,6 +1124,7 @@ export default function ApplicationsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => setSelectedApplication(null)}
                 className="rounded-lg px-3 py-2 text-xl leading-none text-gray-500 hover:bg-gray-100 hover:text-gray-900"
               >
@@ -1053,7 +1173,8 @@ export default function ApplicationsPage() {
                     </div>
                     <div className="mt-1 text-sm text-gray-500">
                       {formatMoney(
-                        getRelation(selectedApplication.property)?.monthly_rent ??
+                        getRelation(selectedApplication.property)
+                          ?.monthly_rent ??
                           selectedApplication.monthly_rent
                       )}{" "}
                       / month
@@ -1131,7 +1252,9 @@ export default function ApplicationsPage() {
                                     normalizeStatus(item.old_status)
                                   )} → `
                                 : ""}
-                              {formatStatus(normalizeStatus(item.new_status))}
+                              {formatStatus(
+                                normalizeStatus(item.new_status)
+                              )}
                             </div>
 
                             <div className="text-xs text-gray-500">
@@ -1180,7 +1303,8 @@ export default function ApplicationsPage() {
                   />
 
                   <button
-                    onClick={updateStatus}
+                    type="button"
+                    onClick={() => void updateStatus()}
                     disabled={
                       saving ||
                       (newStatus === selectedApplication.status &&

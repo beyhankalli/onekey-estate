@@ -16,30 +16,43 @@ import { createClient } from "@/lib/supabase/client";
 export default function HomeFeaturedProperties() {
   const [featured, setFeatured] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
+    const supabase = createClient();
+    let isMounted = true;
+
     async function fetchFeaturedProperties() {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("*, property_images(url, image_type, display_order)")
-        .eq("is_featured", true)
-        .order("created_at", { ascending: false })
-        .limit(6);
+      try {
+        const { data, error } = await supabase
+          .from("properties")
+          .select("*, property_images(url, image_type, display_order)")
+          .eq("is_featured", true)
+          .order("created_at", { ascending: false })
+          .limit(6);
 
-      if (data) {
-        setFeatured(data);
+        if (error) {
+          console.error("Error fetching featured properties:", error);
+          return;
+        }
+
+        if (isMounted) {
+          setFeatured(data ?? []);
+        }
+      } catch (error) {
+        console.error("Unexpected error fetching featured properties:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-
-      if (error) {
-        console.error("Error fetching featured properties:", error);
-      }
-
-      setLoading(false);
     }
 
     fetchFeaturedProperties();
-  }, [supabase]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const getMainImage = (prop: any) => {
     if (prop.property_images && prop.property_images.length > 0) {
@@ -61,7 +74,7 @@ export default function HomeFeaturedProperties() {
         <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-4">
-              Featured Properties
+              Featured Properties{" "}
               <span className="text-[#ae884e]">.</span>
             </h2>
 
@@ -150,21 +163,25 @@ export default function HomeFeaturedProperties() {
 
                       <div className="flex items-center text-gray-600 mb-5">
                         <MapPin className="w-4 h-4 mr-1.5 text-[#ae884e]" />
+
                         <span className="text-sm font-medium">
                           {prop.short_location}
                         </span>
                       </div>
 
                       <div className="text-2xl font-medium text-[#1c3053] mb-6">
-                        Ł{prop.monthly_rent?.toLocaleString()}{" "}
+                        {prop.monthly_rent != null
+                          ? `£${Number(prop.monthly_rent).toLocaleString()}`
+                          : "Price on request"}{" "}
                         <span className="text-sm text-gray-400 font-light">
-                          pcm
+                          {prop.monthly_rent != null ? "pcm" : ""}
                         </span>
                       </div>
 
                       <div className="flex gap-6 mb-8 border-t border-gray-100 pt-6">
                         <div className="flex items-center text-gray-600">
                           <Bed className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" />
+
                           <span className="font-light">
                             {prop.bedrooms} Beds
                           </span>
@@ -172,6 +189,7 @@ export default function HomeFeaturedProperties() {
 
                         <div className="flex items-center text-gray-600">
                           <Bath className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" />
+
                           <span className="font-light">
                             {prop.bathrooms} Baths
                           </span>

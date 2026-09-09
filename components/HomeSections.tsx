@@ -18,6 +18,32 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
+interface PropertyImage {
+  url: string;
+  image_type?: string | null;
+  display_order?: number | null;
+}
+
+interface FeaturedProperty {
+  id: string;
+  title?: string | null;
+  short_location?: string | null;
+  monthly_rent?: number | string | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  availability_status?: string | null;
+  property_images?: PropertyImage[] | null;
+}
+
+interface Review {
+  id: string;
+  client_name: string;
+  location_tag?: string | null;
+  comment: string;
+  rating?: number | null;
+  created_at?: string | null;
+}
+
 export function Hero() {
   const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();
@@ -26,7 +52,9 @@ export function Hero() {
     e.preventDefault();
 
     if (searchTerm.trim()) {
-      router.push(`/listings?search=${encodeURIComponent(searchTerm)}`);
+      router.push(
+        `/listings?search=${encodeURIComponent(searchTerm.trim())}`
+      );
     } else {
       router.push("/listings");
     }
@@ -64,6 +92,7 @@ export function Hero() {
         >
           <div className="relative flex-1">
             <Search className="w-6 h-6 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+
             <input
               type="text"
               placeholder="Postcode, area, or street (e.g. E14)"
@@ -86,40 +115,55 @@ export function Hero() {
 }
 
 export function FeaturedProperties() {
-  const [featured, setFeatured] = useState<any[]>([]);
+  const [featured, setFeatured] = useState<FeaturedProperty[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
+    const supabase = createClient();
+    let isMounted = true;
+
     async function fetchFeaturedProperties() {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("*, property_images(url, image_type)")
-        .eq("is_featured", true)
-        .order("created_at", { ascending: false })
-        .limit(6);
+      try {
+        const { data, error } = await supabase
+          .from("properties")
+          .select("*, property_images(url, image_type, display_order)")
+          .eq("is_featured", true)
+          .order("created_at", { ascending: false })
+          .limit(6);
 
-      if (data) {
-        setFeatured(data);
+        if (error) {
+          console.error("Error fetching featured properties:", error);
+          return;
+        }
+
+        if (isMounted) {
+          setFeatured(data ?? []);
+        }
+      } catch (error) {
+        console.error("Unexpected error fetching featured properties:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-
-      if (error) {
-        console.error("Error fetching featured properties:", error);
-      }
-
-      setLoading(false);
     }
 
     fetchFeaturedProperties();
-  }, [supabase]);
 
-  const getMainImage = (prop: any) => {
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const getMainImage = (prop: FeaturedProperty) => {
     if (prop.property_images && prop.property_images.length > 0) {
-      const interior = prop.property_images.find(
-        (img: any) => img.image_type === "interior"
+      const orderedImages = [...prop.property_images].sort(
+        (a: PropertyImage, b: PropertyImage) =>
+          (a.display_order ?? Number.MAX_SAFE_INTEGER) -
+          (b.display_order ?? Number.MAX_SAFE_INTEGER)
       );
 
-      return interior ? interior.url : prop.property_images[0].url;
+      return orderedImages[0]?.url || null;
     }
 
     return null;
@@ -220,21 +264,25 @@ export function FeaturedProperties() {
 
                       <div className="flex items-center text-gray-600 mb-5">
                         <MapPin className="w-4 h-4 mr-1.5 text-[#ae884e]" />
+
                         <span className="text-sm font-medium">
                           {prop.short_location}
                         </span>
                       </div>
 
                       <div className="text-2xl font-medium text-[#1c3053] mb-6">
-                        Ł{prop.monthly_rent?.toLocaleString()}{" "}
+                        {prop.monthly_rent != null
+                          ? `£${Number(prop.monthly_rent).toLocaleString()}`
+                          : "Price on request"}{" "}
                         <span className="text-sm text-gray-400 font-light">
-                          pcm
+                          {prop.monthly_rent != null ? "pcm" : ""}
                         </span>
                       </div>
 
                       <div className="flex gap-6 mb-8 border-t border-gray-100 pt-6">
                         <div className="flex items-center text-gray-600">
                           <Bed className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" />
+
                           <span className="font-light">
                             {prop.bedrooms} Beds
                           </span>
@@ -242,6 +290,7 @@ export function FeaturedProperties() {
 
                         <div className="flex items-center text-gray-600">
                           <Bath className="w-5 h-5 mr-2 stroke-[1.5] text-[#ae884e]" />
+
                           <span className="font-light">
                             {prop.bathrooms} Baths
                           </span>
@@ -408,30 +457,46 @@ export function AboutPreview() {
 }
 
 export function ReviewsPreview() {
-  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const supabase = createClient();
+    let isMounted = true;
+
     async function fetchReviews() {
-      const supabase = createClient();
+      try {
+        const { data, error } = await supabase
+          .from("reviews")
+          .select(
+            "id, client_name, location_tag, comment, rating, created_at"
+          )
+          .eq("is_approved", true)
+          .order("created_at", { ascending: false })
+          .limit(3);
 
-      const { data, error } = await supabase
-        .from("reviews")
-        .select("id, client_name, location_tag, comment, rating, created_at")
-        .eq("is_approved", true)
-        .order("created_at", { ascending: false })
-        .limit(3);
+        if (error) {
+          console.error("Error fetching reviews:", error);
+          return;
+        }
 
-      if (error) {
-        console.error("Error fetching reviews:", error);
-      } else {
-        setReviews(data || []);
+        if (isMounted) {
+          setReviews(data ?? []);
+        }
+      } catch (error) {
+        console.error("Unexpected error fetching reviews:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     }
 
     fetchReviews();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (
@@ -460,39 +525,44 @@ export function ReviewsPreview() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {reviews.map((review) => (
-              <div
-                key={review.id}
-                className="bg-white p-10 rounded-[2rem] shadow-sm border border-gray-100"
-              >
-                <div className="flex gap-1 mb-6 text-[#ae884e]">
-                  {[...Array(Math.min(Math.max(review.rating || 5, 0), 5))].map(
-                    (_, idx) => (
+            {reviews.map((review) => {
+              const rating = Math.min(
+                Math.max(Number(review.rating) || 0, 0),
+                5
+              );
+
+              return (
+                <div
+                  key={review.id}
+                  className="bg-white p-10 rounded-[2rem] shadow-sm border border-gray-100"
+                >
+                  <div className="flex gap-1 mb-6 text-[#ae884e]">
+                    {Array.from({ length: rating }).map((_, idx) => (
                       <Star
                         key={idx}
                         className="w-5 h-5 fill-current"
                       />
-                    )
-                  )}
+                    ))}
+                  </div>
+
+                  <p className="text-gray-700 italic font-light mb-8">
+                    &quot;{review.comment}&quot;
+                  </p>
+
+                  <div>
+                    <h4 className="font-semibold text-gray-900">
+                      {review.client_name}
+                    </h4>
+
+                    {review.location_tag && (
+                      <p className="text-sm text-gray-500 font-light">
+                        {review.location_tag}
+                      </p>
+                    )}
+                  </div>
                 </div>
-
-                <p className="text-gray-700 italic font-light mb-8">
-                  "{review.comment}"
-                </p>
-
-                <div>
-                  <h4 className="font-semibold text-gray-900">
-                    {review.client_name}
-                  </h4>
-
-                  {review.location_tag && (
-                    <p className="text-sm text-gray-500 font-light">
-                      {review.location_tag}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

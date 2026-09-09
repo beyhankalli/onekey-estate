@@ -1,74 +1,135 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { ArrowLeft, Save, User, ClipboardList, AlertCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  User,
+  ClipboardList,
+  AlertCircle,
+} from "lucide-react";
+
+interface CustomerFormData {
+  name: string;
+  email: string;
+  phone: string;
+  lead_status: string;
+  notes: string;
+  budget: string;
+  propertyType: string;
+  area: string;
+  bedrooms: string;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return "Failed to add customer. Please try again.";
+}
 
 export default function NewCustomerPage() {
   const router = useRouter();
-  const supabase = createClient();
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Form verilerini tutacağımız state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<CustomerFormData>({
     name: "",
     email: "",
     phone: "",
     lead_status: "New",
     notes: "",
-    // Tercihler (Preferences) JSON içine kaydedilecek
     budget: "",
     propertyType: "",
     area: "",
     bedrooms: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (loading) {
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      // JSON formatına dönüştürülecek tercihler
+      const name = formData.name.trim();
+      const email = formData.email.trim().toLowerCase();
+      const phone = formData.phone.trim();
+      const notes = formData.notes.trim();
+
+      if (!name) {
+        throw new Error("Please enter the customer's full name.");
+      }
+
+      if (!email) {
+        throw new Error("Please enter the customer's email address.");
+      }
+
       const preferences_json = {
-        budget: formData.budget,
-        propertyType: formData.propertyType,
-        area: formData.area,
-        bedrooms: formData.bedrooms,
+        budget: formData.budget.trim(),
+        propertyType: formData.propertyType.trim(),
+        area: formData.area.trim(),
+        bedrooms: formData.bedrooms.trim(),
       };
 
-      const { error: insertError } = await supabase.from("customers").insert([
-        {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone || null,
-          lead_status: formData.lead_status,
-          notes: formData.notes,
-          preferences_json: preferences_json,
-        },
-      ]);
+      const supabase = createClient();
+
+      const { error: insertError } = await supabase
+        .from("customers")
+        .insert([
+          {
+            name,
+            email,
+            phone: phone || null,
+            lead_status: formData.lead_status,
+            notes,
+            preferences_json,
+          },
+        ]);
 
       if (insertError) {
-        // Eğer e-posta adresi zaten varsa Supabase hata döndürür
         if (insertError.code === "23505") {
-          throw new Error("A customer with this email address already exists.");
+          throw new Error(
+            "A customer with this email address already exists."
+          );
         }
+
         throw insertError;
       }
 
-      // Başarılı olursa listeye geri dön ve sayfayı yenile
       router.push("/admin/customers");
-      router.refresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error adding customer:", err);
-      setError(err.message || "Failed to add customer. Please try again.");
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -83,9 +144,14 @@ export default function NewCustomerPage() {
         >
           <ArrowLeft className="w-5 h-5 text-gray-600" />
         </Link>
+
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Add New Customer</h1>
-          <p className="text-sm text-gray-500">Create a new CRM record manually.</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Add New Customer
+          </h1>
+          <p className="text-sm text-gray-500">
+            Create a new CRM record manually.
+          </p>
         </div>
       </div>
 
@@ -98,16 +164,16 @@ export default function NewCustomerPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Kişisel Bilgiler Kartı */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
             <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 border-b pb-3">
               <User className="w-5 h-5 text-[#ae884e]" />
               Personal Details
             </h2>
-            
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Full Name *
+              </label>
               <input
                 type="text"
                 name="name"
@@ -120,7 +186,9 @@ export default function NewCustomerPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email Address *
+              </label>
               <input
                 type="email"
                 name="email"
@@ -133,7 +201,9 @@ export default function NewCustomerPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone Number
+              </label>
               <input
                 type="tel"
                 name="phone"
@@ -145,7 +215,9 @@ export default function NewCustomerPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Lead Status</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Lead Status
+              </label>
               <select
                 name="lead_status"
                 value={formData.lead_status}
@@ -155,7 +227,9 @@ export default function NewCustomerPage() {
                 <option value="New">New</option>
                 <option value="Contacted">Contacted</option>
                 <option value="Viewing Booked">Viewing Booked</option>
-                <option value="Viewing Completed">Viewing Completed</option>
+                <option value="Viewing Completed">
+                  Viewing Completed
+                </option>
                 <option value="Application">Application</option>
                 <option value="Offer">Offer</option>
                 <option value="Completed">Completed</option>
@@ -164,7 +238,6 @@ export default function NewCustomerPage() {
             </div>
           </div>
 
-          {/* Tercihler Kartı */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
             <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 border-b pb-3">
               <ClipboardList className="w-5 h-5 text-[#ae884e]" />
@@ -173,7 +246,9 @@ export default function NewCustomerPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Budget</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Budget
+                </label>
                 <input
                   type="text"
                   name="budget"
@@ -183,8 +258,11 @@ export default function NewCustomerPage() {
                   placeholder="e.g. £1500 pcm"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bedrooms</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bedrooms
+                </label>
                 <input
                   type="text"
                   name="bedrooms"
@@ -197,7 +275,9 @@ export default function NewCustomerPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Property Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Property Type
+              </label>
               <input
                 type="text"
                 name="propertyType"
@@ -209,7 +289,9 @@ export default function NewCustomerPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Area</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Preferred Area
+              </label>
               <input
                 type="text"
                 name="area"
@@ -221,7 +303,9 @@ export default function NewCustomerPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notes
+              </label>
               <textarea
                 name="notes"
                 value={formData.notes}
@@ -234,7 +318,6 @@ export default function NewCustomerPage() {
           </div>
         </div>
 
-        {/* Kaydet Butonu */}
         <div className="flex justify-end">
           <button
             type="submit"

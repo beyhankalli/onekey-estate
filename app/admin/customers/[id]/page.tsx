@@ -27,10 +27,18 @@ import {
   CreditCard,
   CheckCircle2,
   AlertCircle,
-  Hash,    
-  Edit3,   
-  X        
+  Hash,
+  Edit3,
+  X,
 } from "lucide-react";
+
+interface CustomerPreferences {
+  budget?: string | null;
+  propertyType?: string | null;
+  area?: string | null;
+  bedrooms?: string | null;
+  [key: string]: unknown;
+}
 
 interface Customer {
   id: string;
@@ -38,7 +46,7 @@ interface Customer {
   email: string;
   phone: string | null;
   lead_status: string;
-  preferences_json: any;
+  preferences_json: CustomerPreferences | null;
   notes: string | null;
   created_at: string;
   is_active?: boolean;
@@ -47,12 +55,16 @@ interface Customer {
   account_number?: string;
 }
 
+interface BookingProperty {
+  title: string | null;
+}
+
 interface Booking {
   id: string;
   viewing_date: string;
   start_time: string;
   status: string;
-  property?: { title: string };
+  property?: BookingProperty | BookingProperty[] | null;
 }
 
 interface Message {
@@ -85,21 +97,144 @@ interface PaymentRecord {
   updated_at: string;
 }
 
+interface EditForm {
+  name: string;
+  email: string;
+  phone: string;
+  budget: string;
+  propertyType: string;
+  area: string;
+  bedrooms: string;
+}
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return "An unexpected error occurred.";
+};
+
+const getPropertyTitle = (
+  property: Booking["property"]
+): string => {
+  if (Array.isArray(property)) {
+    return property[0]?.title || "Unknown Property";
+  }
+
+  return property?.title || "Unknown Property";
+};
+
+const loadCustomerProfileData = async (
+  customerId: string
+): Promise<{
+  customer: Customer;
+  bookings: Booking[];
+  messages: Message[];
+  documents: CustomerDocument[];
+  paymentRecords: PaymentRecord[];
+}> => {
+  const supabase = createClient();
+
+  const { data: customerData, error: customerError } = await supabase
+    .from("customers")
+    .select(
+      "id, name, email, phone, lead_status, preferences_json, notes, created_at, is_active, email_verified, phone_verified, account_number"
+    )
+    .eq("id", customerId)
+    .single();
+
+  if (customerError) {
+    throw customerError;
+  }
+
+  const [
+    bookingsResult,
+    messagesResult,
+    documentsResult,
+    paymentsResult,
+  ] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select(
+        "id, viewing_date, start_time, status, property:properties(title)"
+      )
+      .eq("customer_id", customerId)
+      .order("viewing_date", { ascending: false }),
+
+    supabase
+      .from("messages")
+      .select("id, message, created_at")
+      .eq("customer_id", customerId)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("customer_documents")
+      .select(
+        "id, category, document_number, full_name, share_code, file_url, status, created_at"
+      )
+      .eq("customer_id", customerId)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("customer_payment_records")
+      .select(
+        "id, customer_id, payment_month, status, amount, due_date, paid_date, notes, created_at, updated_at"
+      )
+      .eq("customer_id", customerId)
+      .order("payment_month", { ascending: false }),
+  ]);
+
+  if (bookingsResult.error) {
+    throw bookingsResult.error;
+  }
+
+  if (messagesResult.error) {
+    throw messagesResult.error;
+  }
+
+  if (documentsResult.error) {
+    throw documentsResult.error;
+  }
+
+  if (paymentsResult.error) {
+    throw paymentsResult.error;
+  }
+
+  return {
+    customer: customerData as Customer,
+    bookings: (bookingsResult.data ?? []) as Booking[],
+    messages: (messagesResult.data ?? []) as Message[],
+    documents: (documentsResult.data ?? []) as CustomerDocument[],
+    paymentRecords: (paymentsResult.data ?? []) as PaymentRecord[],
+  };
+};
+
 export default function CustomerProfilePage() {
   const params = useParams();
   const router = useRouter();
   const customerId = params.id as string;
-  const supabase = createClient();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [documents, setDocuments] = useState<CustomerDocument[]>([]);
-  const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
+  const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(
+    null
+  );
   const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [verifyingContact, setVerifyingContact] = useState(false); 
+  const [verifyingContact, setVerifyingContact] = useState(false);
 
   const [adminNotes, setAdminNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
@@ -129,17 +264,93 @@ export default function CustomerProfilePage() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
 
-  // Müsteri Bilgilerini Düzenleme Modali State'leri
   const [showEditModal, setShowEditModal] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
-  const [editForm, setEditForm] = useState({
-    name: "", email: "", phone: "", budget: "", propertyType: "", area: "", bedrooms: ""
+  const [editForm, setEditForm] = useState<EditForm>({
+    name: "",
+    email: "",
+    phone: "",
+    budget: "",
+    propertyType: "",
+    area: "",
+    bedrooms: "",
   });
 
-  useEffect(() => {
-    if (customerId) {
-      fetchFullCustomerProfile();
+  const fetchFullCustomerProfile = async () => {
+    if (!customerId) {
+      return;
     }
+
+    setLoading(true);
+
+    try {
+      const data = await loadCustomerProfileData(customerId);
+
+      setCustomer(data.customer);
+      setBookings(data.bookings);
+      setMessages(data.messages);
+      setDocuments(data.documents);
+      setPaymentRecords(data.paymentRecords);
+      setDocFullName(data.customer.name || "");
+      setAdminNotes(data.customer.notes || "");
+    } catch (error: unknown) {
+      console.error("Error loading customer profile:", error);
+      alert(
+        "Failed to load customer profile: " +
+          getErrorMessage(error)
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const load = async () => {
+      if (!customerId) {
+        if (isMounted) {
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const data = await loadCustomerProfileData(customerId);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCustomer(data.customer);
+        setBookings(data.bookings);
+        setMessages(data.messages);
+        setDocuments(data.documents);
+        setPaymentRecords(data.paymentRecords);
+        setDocFullName(data.customer.name || "");
+        setAdminNotes(data.customer.notes || "");
+      } catch (error: unknown) {
+        if (!isMounted) {
+          return;
+        }
+
+        console.error("Error loading customer profile:", error);
+        alert(
+          "Failed to load customer profile: " +
+            getErrorMessage(error)
+        );
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      isMounted = false;
+    };
   }, [customerId]);
 
   useEffect(() => {
@@ -152,80 +363,15 @@ export default function CustomerProfilePage() {
     }
 
     return () => {
-      if (timer) clearInterval(timer);
+      if (timer) {
+        clearInterval(timer);
+      }
     };
   }, [showDeleteModal, countdown]);
 
-  const fetchFullCustomerProfile = async () => {
-    try {
-      setLoading(true);
-
-      const { data: customerData, error: customerError } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("id", customerId)
-        .single();
-
-      if (customerError) throw customerError;
-
-      setCustomer(customerData);
-
-      if (customerData) {
-        setDocFullName(customerData.name || "");
-        setAdminNotes(customerData.notes || "");
-      }
-
-      const { data: bookingsData } = await supabase
-        .from("bookings")
-        .select(
-          "id, viewing_date, start_time, status, property:properties(title)"
-        )
-        .eq("customer_id", customerId)
-        .order("viewing_date", { ascending: false });
-
-      if (bookingsData) {
-        setBookings(bookingsData as any);
-      }
-
-      const { data: messagesData } = await supabase
-        .from("messages")
-        .select("id, message, created_at")
-        .eq("customer_id", customerId)
-        .order("created_at", { ascending: false });
-
-      if (messagesData) {
-        setMessages(messagesData);
-      }
-
-      const { data: docsData } = await supabase
-        .from("customer_documents")
-        .select("*")
-        .eq("customer_id", customerId)
-        .order("created_at", { ascending: false });
-
-      if (docsData) {
-        setDocuments(docsData);
-      }
-
-      const { data: paymentsData, error: paymentsError } = await supabase
-        .from("customer_payment_records")
-        .select("*")
-        .eq("customer_id", customerId)
-        .order("payment_month", { ascending: false });
-
-      if (paymentsError) {
-        console.error("Error loading payment records:", paymentsError);
-      } else if (paymentsData) {
-        setPaymentRecords(paymentsData as PaymentRecord[]);
-      }
-    } catch (error) {
-      console.error("Error loading customer profile:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleStatusChange = async (newStatus: string) => {
+    const supabase = createClient();
+
     try {
       setUpdatingStatus(true);
 
@@ -234,22 +380,34 @@ export default function CustomerProfilePage() {
         .update({ lead_status: newStatus })
         .eq("id", customerId);
 
-      if (error) throw error;
-
-      if (customer) {
-        setCustomer({ ...customer, lead_status: newStatus });
+      if (error) {
+        throw error;
       }
-    } catch (error) {
+
+      setCustomer((current) =>
+        current
+          ? { ...current, lead_status: newStatus }
+          : current
+      );
+    } catch (error: unknown) {
       console.error("Error updating status:", error);
-      alert("Failed to update status, please try again.");
+      alert(
+        "Failed to update status, please try again: " +
+          getErrorMessage(error)
+      );
     } finally {
       setUpdatingStatus(false);
     }
   };
 
-  const handleContactVerification = async (type: "email" | "phone", currentStatus: boolean | undefined) => {
-    if (!customer) return;
-    
+  const handleContactVerification = async (
+    type: "email" | "phone",
+    currentStatus: boolean | undefined
+  ) => {
+    if (!customer) {
+      return;
+    }
+
     setVerifyingContact(true);
     const newStatus = !currentStatus;
 
@@ -260,28 +418,57 @@ export default function CustomerProfilePage() {
         body: JSON.stringify({
           customerId,
           type,
-          verify: newStatus
-        })
+          verify: newStatus,
+        }),
       });
 
-      const result = await response.json();
+      const result: unknown = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Dogrulama islemi basarisiz oldu.");
+        const message =
+          typeof result === "object" &&
+          result !== null &&
+          "error" in result &&
+          typeof result.error === "string"
+            ? result.error
+            : "Verification operation failed.";
+
+        throw new Error(message);
       }
 
-      const updateField = type === "email" ? { email_verified: newStatus } : { phone_verified: newStatus };
-      setCustomer({ ...customer, ...updateField });
+      if (type === "email") {
+        setCustomer((current) =>
+          current
+            ? { ...current, email_verified: newStatus }
+            : current
+        );
+      } else {
+        setCustomer((current) =>
+          current
+            ? { ...current, phone_verified: newStatus }
+            : current
+        );
+      }
 
-      alert(`Success! ${type === 'email' ? 'Email' : 'Phone'} verification status has been updated in the system.`);
-    } catch (err: any) {
-      alert(`Failed to update ${type} verification status: ${err.message}`);
+      alert(
+        `Success! ${
+          type === "email" ? "Email" : "Phone"
+        } verification status has been updated in the system.`
+      );
+    } catch (error: unknown) {
+      alert(
+        `Failed to update ${type} verification status: ${getErrorMessage(
+          error
+        )}`
+      );
     } finally {
       setVerifyingContact(false);
     }
   };
 
   const handleSaveNotes = async () => {
+    const supabase = createClient();
+
     try {
       setSavingNotes(true);
 
@@ -290,21 +477,33 @@ export default function CustomerProfilePage() {
         .update({ notes: adminNotes })
         .eq("id", customerId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
+      setCustomer((current) =>
+        current ? { ...current, notes: adminNotes } : current
+      );
 
       alert("Customer notes saved successfully!");
-    } catch (err: any) {
-      alert("Failed to save notes: " + err.message);
+    } catch (error: unknown) {
+      alert(
+        "Failed to save notes: " + getErrorMessage(error)
+      );
     } finally {
       setSavingNotes(false);
     }
   };
 
   const handleToggleActiveStatus = async () => {
-    if (!customer) return;
+    if (!customer) {
+      return;
+    }
 
-    const nextStatus = customer.is_active === false ? true : false;
-    const actionText = nextStatus ? "restore" : "deactivate and suspend";
+    const nextStatus = customer.is_active === false;
+    const actionText = nextStatus
+      ? "restore"
+      : "deactivate and suspend";
 
     if (
       !window.confirm(
@@ -314,30 +513,45 @@ export default function CustomerProfilePage() {
       return;
     }
 
+    const supabase = createClient();
+
     try {
       const { error } = await supabase
         .from("customers")
         .update({ is_active: nextStatus })
         .eq("id", customerId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      setCustomer({ ...customer, is_active: nextStatus });
+      setCustomer((current) =>
+        current
+          ? { ...current, is_active: nextStatus }
+          : current
+      );
 
       alert(
         `Customer account successfully ${
           nextStatus ? "activated" : "deactivated"
         }!`
       );
-    } catch (err: any) {
-      alert("Failed to update account status: " + err.message);
+    } catch (error: unknown) {
+      alert(
+        "Failed to update account status: " +
+          getErrorMessage(error)
+      );
     }
   };
 
   const handlePermanentDelete = async () => {
-    if (countdown > 0 || !isChecked) return;
+    if (countdown > 0 || !isChecked) {
+      return;
+    }
 
     setDeleting(true);
+
+    const supabase = createClient();
 
     try {
       const { error } = await supabase
@@ -345,13 +559,18 @@ export default function CustomerProfilePage() {
         .delete()
         .eq("id", customerId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       alert("Customer account permanently deleted.");
       router.push("/admin/customers");
       router.refresh();
-    } catch (err: any) {
-      alert("Failed to delete customer: " + err.message);
+    } catch (error: unknown) {
+      alert(
+        "Failed to delete customer: " +
+          getErrorMessage(error)
+      );
       setDeleting(false);
       setShowDeleteModal(false);
     }
@@ -361,26 +580,41 @@ export default function CustomerProfilePage() {
     docId: string,
     newStatus: string
   ) => {
+    const supabase = createClient();
+
     try {
       const { error } = await supabase
         .from("customer_documents")
         .update({ status: newStatus })
         .eq("id", docId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      setDocuments(
-        documents.map((d) =>
-          d.id === docId ? { ...d, status: newStatus } : d
+      setDocuments((current) =>
+        current.map((document) =>
+          document.id === docId
+            ? { ...document, status: newStatus }
+            : document
         )
       );
-    } catch {
+    } catch (error: unknown) {
+      console.error("Failed to update document status:", error);
       alert("Failed to update document status.");
     }
   };
 
   const handleDeleteDoc = async (docId: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this document?"
+      )
+    ) {
+      return;
+    }
+
+    const supabase = createClient();
 
     try {
       const { error } = await supabase
@@ -388,19 +622,27 @@ export default function CustomerProfilePage() {
         .delete()
         .eq("id", docId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      setDocuments(documents.filter((d) => d.id !== docId));
-    } catch {
+      setDocuments((current) =>
+        current.filter((document) => document.id !== docId)
+      );
+    } catch (error: unknown) {
+      console.error("Failed to delete document:", error);
       alert("Failed to delete document.");
     }
   };
 
-  const handleAdminUploadDoc = async (e: React.FormEvent) => {
+  const handleAdminUploadDoc = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     if (!file) {
-      return alert("Please select a file.");
+      alert("Please select a file.");
+      return;
     }
 
     const finalCategory =
@@ -408,35 +650,88 @@ export default function CustomerProfilePage() {
         ? customCategory.trim() || "Other"
         : category;
 
+    const fileExtension = file.name
+      .split(".")
+      .pop()
+      ?.toLowerCase();
+
+    const allowedExtensions = [
+      "jpg",
+      "jpeg",
+      "png",
+      "webp",
+      "gif",
+      "pdf",
+    ];
+
+    if (
+      !fileExtension ||
+      !allowedExtensions.includes(fileExtension)
+    ) {
+      alert(
+        "Please select a valid image or PDF file."
+      );
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("The file must be 10 MB or smaller.");
+      return;
+    }
+
+    if (!docNumber.trim()) {
+      alert("Please enter the document number.");
+      return;
+    }
+
+    if (!docFullName.trim()) {
+      alert("Please enter the full name on the document.");
+      return;
+    }
+
     setUploading(true);
 
+    const supabase = createClient();
+    let uploadedFilePath: string | null = null;
+
     try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${customerId}/${Date.now()}.${fileExt}`;
+      const fileName = `${customerId}/${Date.now()}-${crypto.randomUUID()}.${fileExtension}`;
+      uploadedFilePath = fileName;
 
       const { error: uploadError } = await supabase.storage
         .from("customer-documents")
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          contentType: file.type || undefined,
+          upsert: false,
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        throw uploadError;
+      }
 
       const { data: newDoc, error: dbError } = await supabase
         .from("customer_documents")
         .insert({
           customer_id: customerId,
           category: finalCategory,
-          document_number: docNumber,
-          full_name: docFullName,
-          share_code: shareCode || null,
+          document_number: docNumber.trim(),
+          full_name: docFullName.trim(),
+          share_code: shareCode.trim() || null,
           file_url: fileName,
           status: "approved",
         })
         .select()
         .single();
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        throw dbError;
+      }
 
-      setDocuments([newDoc, ...documents]);
+      setDocuments((current) => [
+        newDoc as CustomerDocument,
+        ...current,
+      ]);
+
       setShowAddDocModal(false);
       setFile(null);
       setDocNumber("");
@@ -444,34 +739,93 @@ export default function CustomerProfilePage() {
       setCustomCategory("");
 
       alert("Document added successfully.");
-    } catch (err: any) {
-      alert(err.message || "Failed to upload document.");
+    } catch (error: unknown) {
+      if (uploadedFilePath) {
+        const { error: cleanupError } = await supabase.storage
+          .from("customer-documents")
+          .remove([uploadedFilePath]);
+
+        if (cleanupError) {
+          console.error(
+            "Failed to clean up uploaded document after database error:",
+            cleanupError
+          );
+        }
+      }
+
+      alert(
+        getErrorMessage(error) ||
+          "Failed to upload document."
+      );
     } finally {
       setUploading(false);
     }
   };
 
   const getStoragePath = (value: string) => {
-    if (!value) return "";
-    const publicMarker = "/storage/v1/object/public/customer-documents/";
-    const signedMarker = "/storage/v1/object/sign/customer-documents/";
-    if (value.includes(publicMarker)) return value.split(publicMarker)[1].split("?")[0];
-    if (value.includes(signedMarker)) return value.split(signedMarker)[1].split("?")[0];
+    if (!value) {
+      return "";
+    }
+
+    const publicMarker =
+      "/storage/v1/object/public/customer-documents/";
+    const signedMarker =
+      "/storage/v1/object/sign/customer-documents/";
+
+    if (value.includes(publicMarker)) {
+      return value
+        .split(publicMarker)[1]
+        .split("?")[0];
+    }
+
+    if (value.includes(signedMarker)) {
+      return value
+        .split(signedMarker)[1]
+        .split("?")[0];
+    }
+
     return value.replace(/^\/+/, "");
   };
 
-  const handleViewDocument = async (doc: CustomerDocument) => {
+  const handleViewDocument = async (
+    doc: CustomerDocument
+  ) => {
     setOpeningDocumentId(doc.id);
+
+    const supabase = createClient();
+
     try {
       const path = getStoragePath(doc.file_url);
-      if (!path) throw new Error("Document file path is missing.");
+
+      if (!path) {
+        throw new Error(
+          "Document file path is missing."
+        );
+      }
+
       const { data, error } = await supabase.storage
         .from("customer-documents")
         .createSignedUrl(path, 300);
-      if (error || !data?.signedUrl) throw error || new Error("Unable to create secure document link.");
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-    } catch (err: any) {
-      alert(err.message || "Unable to open document.");
+
+      if (error || !data?.signedUrl) {
+        throw (
+          error ||
+          new Error(
+            "Unable to create secure document link."
+          )
+        );
+      }
+
+      window.open(
+        data.signedUrl,
+        "_blank",
+        "noopener,noreferrer"
+      );
+    } catch (error: unknown) {
+      alert(
+        getErrorMessage(error) ||
+          "Unable to open document."
+      );
     } finally {
       setOpeningDocumentId(null);
     }
@@ -479,6 +833,7 @@ export default function CustomerProfilePage() {
 
   const getCurrentMonth = () => {
     const now = new Date();
+
     return `${now.getFullYear()}-${String(
       now.getMonth() + 1
     ).padStart(2, "0")}-01`;
@@ -498,11 +853,14 @@ export default function CustomerProfilePage() {
     setShowPaymentForm(true);
   };
 
-  const openEditPaymentForm = (payment: PaymentRecord) => {
+  const openEditPaymentForm = (
+    payment: PaymentRecord
+  ) => {
     setPaymentMonth(payment.payment_month);
     setPaymentStatus(payment.status);
     setPaymentAmount(
-      payment.amount !== null && payment.amount !== undefined
+      payment.amount !== null &&
+        payment.amount !== undefined
         ? String(payment.amount)
         : ""
     );
@@ -512,7 +870,9 @@ export default function CustomerProfilePage() {
     setShowPaymentForm(true);
   };
 
-  const handleSavePayment = async (e: React.FormEvent) => {
+  const handleSavePayment = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     if (!paymentMonth) {
@@ -520,59 +880,94 @@ export default function CustomerProfilePage() {
       return;
     }
 
+    const parsedAmount = paymentAmount
+      ? Number(paymentAmount)
+      : null;
+
+    if (
+      parsedAmount !== null &&
+      (!Number.isFinite(parsedAmount) ||
+        parsedAmount < 0)
+    ) {
+      alert("Please enter a valid payment amount.");
+      return;
+    }
+
     setSavingPayment(true);
 
+    const supabase = createClient();
+
     try {
-      const normalizedMonth = `${paymentMonth.slice(0, 7)}-01`;
+      const normalizedMonth = `${paymentMonth.slice(
+        0,
+        7
+      )}-01`;
 
-      const { data: savedPayment, error } = await supabase
-        .from("customer_payment_records")
-        .upsert(
-          {
-            customer_id: customerId,
-            payment_month: normalizedMonth,
-            status: paymentStatus,
-            amount: paymentAmount ? Number(paymentAmount) : null,
-            due_date: paymentDueDate || null,
-            paid_date:
-              paymentStatus === "paid" || paymentStatus === "partial"
-                ? paymentPaidDate || null
-                : null,
-            notes: paymentNotes.trim() || null,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "customer_id,payment_month",
-          }
-        )
-        .select()
-        .single();
+      const { data: savedPayment, error } =
+        await supabase
+          .from("customer_payment_records")
+          .upsert(
+            {
+              customer_id: customerId,
+              payment_month: normalizedMonth,
+              status: paymentStatus,
+              amount: parsedAmount,
+              due_date: paymentDueDate || null,
+              paid_date:
+                paymentStatus === "paid" ||
+                paymentStatus === "partial"
+                  ? paymentPaidDate || null
+                  : null,
+              notes: paymentNotes.trim() || null,
+              updated_at: new Date().toISOString(),
+            },
+            {
+              onConflict:
+                "customer_id,payment_month",
+            }
+          )
+          .select()
+          .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
+      const typedPayment =
+        savedPayment as PaymentRecord;
 
       setPaymentRecords((current) => {
         const existing = current.find(
-          (record) => record.payment_month === normalizedMonth
+          (record) =>
+            record.payment_month === normalizedMonth
         );
 
         if (existing) {
           return current
             .map((record) =>
               record.id === existing.id
-                ? (savedPayment as PaymentRecord)
+                ? typedPayment
                 : record
             )
             .sort(
               (a, b) =>
-                new Date(b.payment_month).getTime() -
-                new Date(a.payment_month).getTime()
+                new Date(
+                  b.payment_month
+                ).getTime() -
+                new Date(
+                  a.payment_month
+                ).getTime()
             );
         }
 
-        return [savedPayment as PaymentRecord, ...current].sort(
+        return [typedPayment, ...current].sort(
           (a, b) =>
-            new Date(b.payment_month).getTime() -
-            new Date(a.payment_month).getTime()
+            new Date(
+              b.payment_month
+            ).getTime() -
+            new Date(
+              a.payment_month
+            ).getTime()
         );
       });
 
@@ -580,22 +975,32 @@ export default function CustomerProfilePage() {
       resetPaymentForm();
 
       alert("Payment record saved successfully.");
-    } catch (err: any) {
-      console.error("Payment save error:", err);
-      alert(err.message || "Failed to save payment record.");
+    } catch (error: unknown) {
+      console.error(
+        "Payment save error:",
+        error
+      );
+      alert(
+        getErrorMessage(error) ||
+          "Failed to save payment record."
+      );
     } finally {
       setSavingPayment(false);
     }
   };
 
-  const handleDeletePayment = async (paymentId: string) => {
+  const handleDeletePayment = async (
+    paymentId: string
+  ) => {
     if (
-      !confirm(
+      !window.confirm(
         "Are you sure you want to delete this payment record?"
       )
     ) {
       return;
     }
+
+    const supabase = createClient();
 
     try {
       const { error } = await supabase
@@ -603,22 +1008,33 @@ export default function CustomerProfilePage() {
         .delete()
         .eq("id", paymentId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      setPaymentRecords(
-        paymentRecords.filter(
+      setPaymentRecords((current) =>
+        current.filter(
           (payment) => payment.id !== paymentId
         )
       );
-    } catch (err: any) {
-      alert(err.message || "Failed to delete payment record.");
+    } catch (error: unknown) {
+      alert(
+        getErrorMessage(error) ||
+          "Failed to delete payment record."
+      );
     }
   };
 
-  const formatPaymentMonth = (dateString: string) => {
+  const formatPaymentMonth = (
+    dateString: string
+  ) => {
     const date = new Date(
       `${dateString.slice(0, 10)}T00:00:00`
     );
+
+    if (Number.isNaN(date.getTime())) {
+      return "Invalid date";
+    }
 
     return date.toLocaleDateString("en-GB", {
       month: "long",
@@ -626,12 +1042,22 @@ export default function CustomerProfilePage() {
     });
   };
 
-  const formatPaymentDate = (dateString: string | null) => {
-    if (!dateString) return "—";
+  const formatPaymentDate = (
+    dateString: string | null
+  ) => {
+    if (!dateString) {
+      return "—";
+    }
 
-    return new Date(
+    const date = new Date(
       `${dateString.slice(0, 10)}T00:00:00`
-    ).toLocaleDateString("en-GB");
+    );
+
+    if (Number.isNaN(date.getTime())) {
+      return "Invalid date";
+    }
+
+    return date.toLocaleDateString("en-GB");
   };
 
   const getPaymentStatusClasses = (
@@ -664,70 +1090,118 @@ export default function CustomerProfilePage() {
     }
   };
 
-  // Müsteri Bakiyesini Hesaplama (Ödenmemis veya Gecikmis Toplam Tutar)
   const calculateBalance = () => {
     let totalBalance = 0;
+
     paymentRecords.forEach((record) => {
-      if (record.status === "unpaid" || record.status === "overdue") {
+      if (
+        record.status === "unpaid" ||
+        record.status === "overdue"
+      ) {
         totalBalance += Number(record.amount || 0);
       }
     });
+
     return totalBalance;
   };
 
-  // Profili Düzenleme Mantigi
   const openEditModal = () => {
     const prefs = customer?.preferences_json || {};
+
     setEditForm({
       name: customer?.name || "",
       email: customer?.email || "",
       phone: customer?.phone || "",
-      budget: prefs.budget || "",
-      propertyType: prefs.propertyType || "",
-      area: prefs.area || "",
-      bedrooms: prefs.bedrooms || ""
+      budget:
+        typeof prefs.budget === "string"
+          ? prefs.budget
+          : "",
+      propertyType:
+        typeof prefs.propertyType === "string"
+          ? prefs.propertyType
+          : "",
+      area:
+        typeof prefs.area === "string"
+          ? prefs.area
+          : "",
+      bedrooms:
+        typeof prefs.bedrooms === "string"
+          ? prefs.bedrooms
+          : "",
     });
+
     setShowEditModal(true);
   };
 
-  const handleEditProfileSubmit = async (e: React.FormEvent) => {
+  const handleEditProfileSubmit = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
+
+    const trimmedName = editForm.name.trim();
+    const trimmedEmail =
+      editForm.email.trim().toLowerCase();
+    const trimmedPhone = editForm.phone.trim();
+
+    if (!trimmedName) {
+      alert("Please enter the customer's name.");
+      return;
+    }
+
+    if (!trimmedEmail) {
+      alert("Please enter the customer's email.");
+      return;
+    }
+
     setSavingProfile(true);
 
+    const supabase = createClient();
+
     try {
-      const updatedPreferences = {
-        budget: editForm.budget,
-        propertyType: editForm.propertyType,
-        area: editForm.area,
-        bedrooms: editForm.bedrooms,
+      const updatedPreferences: CustomerPreferences = {
+        budget: editForm.budget.trim(),
+        propertyType: editForm.propertyType.trim(),
+        area: editForm.area.trim(),
+        bedrooms: editForm.bedrooms.trim(),
       };
 
       const { error } = await supabase
         .from("customers")
         .update({
-          name: editForm.name,
-          email: editForm.email,
-          phone: editForm.phone,
-          preferences_json: updatedPreferences
+          name: trimmedName,
+          email: trimmedEmail,
+          phone: trimmedPhone || null,
+          preferences_json: updatedPreferences,
         })
         .eq("id", customerId);
 
-      if (error) throw error;
-
-      if (customer) {
-        setCustomer({
-          ...customer,
-          name: editForm.name,
-          email: editForm.email,
-          phone: editForm.phone,
-          preferences_json: updatedPreferences
-        });
+      if (error) {
+        throw error;
       }
 
+      setCustomer((current) =>
+        current
+          ? {
+              ...current,
+              name: trimmedName,
+              email: trimmedEmail,
+              phone: trimmedPhone || null,
+              preferences_json: updatedPreferences,
+            }
+          : current
+      );
+
+      setDocFullName(trimmedName);
       setShowEditModal(false);
-      alert("Customer profile successfully updated.");
-    } catch (err: any) {
-      alert("Failed to update profile: " + err.message);
+
+      alert(
+        "Customer profile successfully updated."
+      );
+    } catch (error: unknown) {
+      alert(
+        "Failed to update profile: " +
+          getErrorMessage(error)
+      );
     } finally {
       setSavingProfile(false);
     }
@@ -747,7 +1221,10 @@ export default function CustomerProfilePage() {
         <p>Customer not found.</p>
 
         <button
-          onClick={() => router.push("/admin/customers")}
+          type="button"
+          onClick={() =>
+            router.push("/admin/customers")
+          }
           className="mt-4 text-[#ae884e] underline"
         >
           Return to Customers
@@ -762,7 +1239,6 @@ export default function CustomerProfilePage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12 relative">
-      {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <div className="flex items-center gap-4">
           <Link
@@ -777,17 +1253,23 @@ export default function CustomerProfilePage() {
               <h1 className="text-2xl font-bold text-gray-900">
                 {customer.name}
               </h1>
+
               {customer.account_number && (
                 <span className="flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-md">
-                  <Hash className="w-3.5 h-3.5" /> {customer.account_number}
+                  <Hash className="w-3.5 h-3.5" />
+                  {customer.account_number}
                 </span>
               )}
 
-              {/* Bakiye Rozeti Eklendi */}
-              <span className={`flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-md border ${
-                currentBalance > 0 ? "bg-red-50 text-red-700 border-red-200" : "bg-green-50 text-green-700 border-green-200"
-              }`}>
-                <PoundSterling className="w-3.5 h-3.5" /> Balance: £{currentBalance.toFixed(2)}
+              <span
+                className={`flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-md border ${
+                  currentBalance > 0
+                    ? "bg-red-50 text-red-700 border-red-200"
+                    : "bg-green-50 text-green-700 border-green-200"
+                }`}
+              >
+                <PoundSterling className="w-3.5 h-3.5" />
+                Balance: £{currentBalance.toFixed(2)}
               </span>
 
               {isInactive && (
@@ -799,16 +1281,14 @@ export default function CustomerProfilePage() {
 
             <p className="text-sm text-gray-500 mt-0.5">
               Customer since{" "}
-              {new Date(customer.created_at).toLocaleDateString(
-                "en-GB"
-              )}
+              {new Date(
+                customer.created_at
+              ).toLocaleDateString("en-GB")}
             </p>
           </div>
         </div>
 
-        {/* Two-row control group */}
         <div className="flex flex-col items-end gap-2 lg:ml-auto">
-          {/* Top row */}
           <div className="flex flex-wrap items-center justify-end gap-3">
             <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
               <label className="text-xs font-semibold text-gray-700 pl-1">
@@ -818,13 +1298,17 @@ export default function CustomerProfilePage() {
               <select
                 value={customer.lead_status}
                 onChange={(e) =>
-                  handleStatusChange(e.target.value)
+                  void handleStatusChange(
+                    e.target.value
+                  )
                 }
                 disabled={updatingStatus}
                 className="text-xs border border-gray-200 rounded-lg focus:ring-[#ae884e] focus:border-[#ae884e] bg-white py-1.5 px-3 text-gray-900 font-medium outline-none"
               >
                 <option value="New">New</option>
-                <option value="Contacted">Contacted</option>
+                <option value="Contacted">
+                  Contacted
+                </option>
                 <option value="Viewing Booked">
                   Viewing Booked
                 </option>
@@ -835,13 +1319,16 @@ export default function CustomerProfilePage() {
                   Application
                 </option>
                 <option value="Offer">Offer</option>
-                <option value="Completed">Completed</option>
+                <option value="Completed">
+                  Completed
+                </option>
                 <option value="Lost">Lost</option>
               </select>
             </div>
 
             <button
-              onClick={handleSaveNotes}
+              type="button"
+              onClick={() => void handleSaveNotes()}
               disabled={savingNotes}
               className="flex items-center gap-1.5 px-5 py-2.5 bg-[#1c3053] hover:bg-[#ae884e] text-white rounded-xl text-xs font-semibold transition-all shadow-sm disabled:bg-gray-400"
             >
@@ -850,10 +1337,10 @@ export default function CustomerProfilePage() {
             </button>
           </div>
 
-          {/* Bottom row */}
           <div className="flex flex-wrap items-center justify-end gap-3">
             {isInactive && (
               <button
+                type="button"
                 onClick={() => {
                   setCountdown(5);
                   setIsChecked(false);
@@ -868,7 +1355,10 @@ export default function CustomerProfilePage() {
             )}
 
             <button
-              onClick={handleToggleActiveStatus}
+              type="button"
+              onClick={() =>
+                void handleToggleActiveStatus()
+              }
               className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all shadow-sm ${
                 isInactive
                   ? "bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
@@ -889,50 +1379,90 @@ export default function CustomerProfilePage() {
         </div>
       </div>
 
-      {/* Profil Düzenleme Modali */}
       {showEditModal && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-gray-100 space-y-6 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex justify-between items-center border-b border-gray-100 pb-4">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Edit3 className="w-5 h-5 text-[#ae884e]" /> Edit Customer Profile
+                <Edit3 className="w-5 h-5 text-[#ae884e]" />
+                Edit Customer Profile
               </h3>
-              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-red-500 transition-colors">
-                <X className="w-6 h-6"/>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowEditModal(false)
+                }
+                className="text-gray-400 hover:text-red-500 transition-colors"
+                aria-label="Close edit customer profile"
+              >
+                <X className="w-6 h-6" />
               </button>
             </div>
 
-            <form onSubmit={handleEditProfileSubmit} className="space-y-6">
+            <form
+              onSubmit={handleEditProfileSubmit}
+              className="space-y-6"
+            >
               <div>
-                <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Contact Details</h4>
+                <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">
+                  Contact Details
+                </h4>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Full Name</label>
-                    <input 
-                      type="text" 
-                      required 
-                      value={editForm.name} 
-                      onChange={e => setEditForm({...editForm, name: e.target.value})} 
-                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none" 
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      Full Name
+                    </label>
+
+                    <input
+                      type="text"
+                      required
+                      value={editForm.name}
+                      onChange={(e) =>
+                        setEditForm((current) => ({
+                          ...current,
+                          name: e.target.value,
+                        }))
+                      }
+                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone Number</label>
-                    <input 
-                      type="text" 
-                      value={editForm.phone} 
-                      onChange={e => setEditForm({...editForm, phone: e.target.value})} 
-                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none" 
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      Phone Number
+                    </label>
+
+                    <input
+                      type="text"
+                      value={editForm.phone}
+                      onChange={(e) =>
+                        setEditForm((current) => ({
+                          ...current,
+                          phone: e.target.value,
+                        }))
+                      }
+                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none"
                     />
                   </div>
+
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Email Address</label>
-                    <input 
-                      type="email" 
-                      required 
-                      value={editForm.email} 
-                      onChange={e => setEditForm({...editForm, email: e.target.value})} 
-                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none" 
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      Email Address
+                    </label>
+
+                    <input
+                      type="email"
+                      required
+                      value={editForm.email}
+                      onChange={(e) =>
+                        setEditForm((current) => ({
+                          ...current,
+                          email: e.target.value,
+                        }))
+                      }
+                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none"
                     />
                   </div>
                 </div>
@@ -941,57 +1471,111 @@ export default function CustomerProfilePage() {
               <hr className="border-gray-100" />
 
               <div>
-                <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Property Preferences</h4>
+                <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">
+                  Property Preferences
+                </h4>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Budget</label>
-                    <input 
-                      type="text" 
-                      value={editForm.budget} 
-                      onChange={e => setEditForm({...editForm, budget: e.target.value})} 
-                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none placeholder:text-gray-400" 
-                      placeholder="e.g. £1500 pcm" 
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      Budget
+                    </label>
+
+                    <input
+                      type="text"
+                      value={editForm.budget}
+                      onChange={(e) =>
+                        setEditForm((current) => ({
+                          ...current,
+                          budget: e.target.value,
+                        }))
+                      }
+                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none placeholder:text-gray-400"
+                      placeholder="e.g. £1500 pcm"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Property Type</label>
-                    <input 
-                      type="text" 
-                      value={editForm.propertyType} 
-                      onChange={e => setEditForm({...editForm, propertyType: e.target.value})} 
-                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none placeholder:text-gray-400" 
-                      placeholder="e.g. House, Apartment" 
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      Property Type
+                    </label>
+
+                    <input
+                      type="text"
+                      value={editForm.propertyType}
+                      onChange={(e) =>
+                        setEditForm((current) => ({
+                          ...current,
+                          propertyType:
+                            e.target.value,
+                        }))
+                      }
+                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none placeholder:text-gray-400"
+                      placeholder="e.g. House, Apartment"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Preferred Area</label>
-                    <input 
-                      type="text" 
-                      value={editForm.area} 
-                      onChange={e => setEditForm({...editForm, area: e.target.value})} 
-                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none placeholder:text-gray-400" 
-                      placeholder="e.g. Birmingham City Centre" 
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      Preferred Area
+                    </label>
+
+                    <input
+                      type="text"
+                      value={editForm.area}
+                      onChange={(e) =>
+                        setEditForm((current) => ({
+                          ...current,
+                          area: e.target.value,
+                        }))
+                      }
+                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none placeholder:text-gray-400"
+                      placeholder="e.g. Birmingham City Centre"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Bedrooms</label>
-                    <input 
-                      type="text" 
-                      value={editForm.bedrooms} 
-                      onChange={e => setEditForm({...editForm, bedrooms: e.target.value})} 
-                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none placeholder:text-gray-400" 
-                      placeholder="e.g. 2-3" 
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      Bedrooms
+                    </label>
+
+                    <input
+                      type="text"
+                      value={editForm.bedrooms}
+                      onChange={(e) =>
+                        setEditForm((current) => ({
+                          ...current,
+                          bedrooms:
+                            e.target.value,
+                        }))
+                      }
+                      className="w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#ae884e] outline-none placeholder:text-gray-400"
+                      placeholder="e.g. 2-3"
                     />
                   </div>
                 </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-colors">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowEditModal(false)
+                  }
+                  className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-colors"
+                >
                   Cancel
                 </button>
-                <button type="submit" disabled={savingProfile} className="px-5 py-2 bg-[#1c3053] hover:bg-[#ae884e] text-white text-sm font-semibold rounded-lg disabled:bg-gray-400 flex items-center gap-2 transition-colors">
-                  <Save className="w-4 h-4" /> {savingProfile ? "Saving..." : "Save Changes"}
+
+                <button
+                  type="submit"
+                  disabled={savingProfile}
+                  className="px-5 py-2 bg-[#1c3053] hover:bg-[#ae884e] text-white text-sm font-semibold rounded-lg disabled:bg-gray-400 flex items-center gap-2 transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  {savingProfile
+                    ? "Saving..."
+                    : "Save Changes"}
                 </button>
               </div>
             </form>
@@ -999,7 +1583,6 @@ export default function CustomerProfilePage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 space-y-5 animate-in fade-in zoom-in-95 duration-200">
@@ -1036,14 +1619,16 @@ export default function CustomerProfilePage() {
               />
 
               <span className="text-xs font-semibold text-gray-800">
-                I'm sure I want to permanently delete this account
+                I&apos;m sure I want to permanently delete this account
               </span>
             </label>
 
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowDeleteModal(false)}
+                onClick={() =>
+                  setShowDeleteModal(false)
+                }
                 className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-colors"
               >
                 Cancel
@@ -1052,9 +1637,13 @@ export default function CustomerProfilePage() {
               <button
                 type="button"
                 disabled={
-                  countdown > 0 || !isChecked || deleting
+                  countdown > 0 ||
+                  !isChecked ||
+                  deleting
                 }
-                onClick={handlePermanentDelete}
+                onClick={() =>
+                  void handlePermanentDelete()
+                }
                 className="px-5 py-2.5 bg-red-600 text-white rounded-xl text-xs font-semibold hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-sm"
               >
                 {countdown > 0
@@ -1068,21 +1657,22 @@ export default function CustomerProfilePage() {
         </div>
       )}
 
-      {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-6">
-          {/* Contact Details */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 relative">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
                 <User className="w-5 h-5 text-[#ae884e]" />
                 Contact Details
               </h3>
-              <button 
-                onClick={openEditModal} 
+
+              <button
+                type="button"
+                onClick={openEditModal}
                 className="text-xs font-semibold text-[#1c3053] hover:text-[#ae884e] flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-md border border-gray-200 transition-colors"
               >
-                <Edit3 className="w-3.5 h-3.5" /> Edit
+                <Edit3 className="w-3.5 h-3.5" />
+                Edit
               </button>
             </div>
 
@@ -1092,34 +1682,50 @@ export default function CustomerProfilePage() {
                   <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center shrink-0">
                     <Mail className="w-4 h-4 text-gray-500" />
                   </div>
+
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-xs text-gray-500">Email Address</p>
+                      <p className="text-xs text-gray-500">
+                        Email Address
+                      </p>
+
                       {customer.email_verified ? (
                         <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
-                          <CheckCircle2 className="w-3 h-3" /> Verified
+                          <CheckCircle2 className="w-3 h-3" />
+                          Verified
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                          <AlertCircle className="w-3 h-3" /> Unverified
+                          <AlertCircle className="w-3 h-3" />
+                          Unverified
                         </span>
                       )}
                     </div>
+
                     <p className="text-sm font-medium text-gray-900 mt-0.5 break-all">
                       {customer.email}
                     </p>
                   </div>
                 </div>
+
                 <button
-                  onClick={() => handleContactVerification("email", customer.email_verified)}
+                  type="button"
+                  onClick={() =>
+                    void handleContactVerification(
+                      "email",
+                      customer.email_verified
+                    )
+                  }
                   disabled={verifyingContact}
                   className={`shrink-0 text-[11px] font-semibold px-2 py-1 rounded transition-colors border ${
-                    customer.email_verified 
-                      ? "text-gray-500 border-gray-200 hover:bg-gray-100" 
+                    customer.email_verified
+                      ? "text-gray-500 border-gray-200 hover:bg-gray-100"
                       : "text-[#1c3053] border-[#1c3053]/20 hover:bg-[#1c3053]/5"
                   }`}
                 >
-                  {customer.email_verified ? "Unverify" : "Verify"}
+                  {customer.email_verified
+                    ? "Unverify"
+                    : "Verify"}
                 </button>
               </div>
 
@@ -1128,44 +1734,59 @@ export default function CustomerProfilePage() {
                   <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center shrink-0">
                     <Phone className="w-4 h-4 text-gray-500" />
                   </div>
+
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-xs text-gray-500">Phone Number</p>
+                      <p className="text-xs text-gray-500">
+                        Phone Number
+                      </p>
+
                       {customer.phone ? (
                         customer.phone_verified ? (
                           <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
-                            <CheckCircle2 className="w-3 h-3" /> Verified
+                            <CheckCircle2 className="w-3 h-3" />
+                            Verified
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                            <AlertCircle className="w-3 h-3" /> Unverified
+                            <AlertCircle className="w-3 h-3" />
+                            Unverified
                           </span>
                         )
                       ) : null}
                     </div>
+
                     <p className="text-sm font-medium text-gray-900 mt-0.5">
                       {customer.phone || "Not provided"}
                     </p>
                   </div>
                 </div>
+
                 {customer.phone && (
                   <button
-                    onClick={() => handleContactVerification("phone", customer.phone_verified)}
+                    type="button"
+                    onClick={() =>
+                      void handleContactVerification(
+                        "phone",
+                        customer.phone_verified
+                      )
+                    }
                     disabled={verifyingContact}
                     className={`shrink-0 text-[11px] font-semibold px-2 py-1 rounded transition-colors border ${
-                      customer.phone_verified 
-                        ? "text-gray-500 border-gray-200 hover:bg-gray-100" 
+                      customer.phone_verified
+                        ? "text-gray-500 border-gray-200 hover:bg-gray-100"
                         : "text-[#1c3053] border-[#1c3053]/20 hover:bg-[#1c3053]/5"
                     }`}
                   >
-                    {customer.phone_verified ? "Unverify" : "Verify"}
+                    {customer.phone_verified
+                      ? "Unverify"
+                      : "Verify"}
                   </button>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Account Notes */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h3 className="text-base font-semibold text-gray-900 mb-2 flex items-center gap-2">
               <StickyNote className="w-5 h-5 text-[#ae884e]" />
@@ -1187,7 +1808,6 @@ export default function CustomerProfilePage() {
             />
           </div>
 
-          {/* Property Preferences */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-[#ae884e]" />
@@ -1242,16 +1862,19 @@ export default function CustomerProfilePage() {
         </div>
 
         <div className="lg:col-span-2 space-y-6">
-          {/* Verification Documents */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-[#ae884e]" />
-                Customer Verification Documents ({documents.length})
+                Customer Verification Documents (
+                {documents.length})
               </h3>
 
               <button
-                onClick={() => setShowAddDocModal(true)}
+                type="button"
+                onClick={() =>
+                  setShowAddDocModal(true)
+                }
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#1c3053] text-white rounded-xl text-xs font-semibold hover:bg-[#ae884e] transition-colors shadow-sm"
               >
                 <Plus className="w-4 h-4" />
@@ -1281,7 +1904,9 @@ export default function CustomerProfilePage() {
                       }
                       className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg bg-white text-gray-900 outline-none"
                     >
-                      <option value="Passport">Passport</option>
+                      <option value="Passport">
+                        Passport
+                      </option>
                       <option value="Biometric Residence Permit (BRP)">
                         Biometric Residence Permit (BRP)
                       </option>
@@ -1297,7 +1922,9 @@ export default function CustomerProfilePage() {
                       <option value="Proof of Address">
                         Proof of Address
                       </option>
-                      <option value="Other">Other</option>
+                      <option value="Other">
+                        Other
+                      </option>
                     </select>
                   </div>
 
@@ -1312,7 +1939,9 @@ export default function CustomerProfilePage() {
                         required
                         value={customCategory}
                         onChange={(e) =>
-                          setCustomCategory(e.target.value)
+                          setCustomCategory(
+                            e.target.value
+                          )
                         }
                         placeholder="e.g. Visa Document"
                         className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 outline-none"
@@ -1365,7 +1994,9 @@ export default function CustomerProfilePage() {
                       required
                       accept="image/*,.pdf"
                       onChange={(e) =>
-                        setFile(e.target.files?.[0] || null)
+                        setFile(
+                          e.target.files?.[0] || null
+                        )
                       }
                       className="w-full text-xs text-gray-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-200 file:text-[#1c3053]"
                     />
@@ -1386,7 +2017,7 @@ export default function CustomerProfilePage() {
                   <button
                     type="submit"
                     disabled={uploading}
-                    className="px-4 py-1.5 bg-[#1c3053] text-white text-xs rounded-lg hover:bg-[#ae884e] disabled:bg-gray-400 font-medium"
+                    className="px-4 py-1.5 bg-[#1c3053] text-white text-xs rounded-lg hover:bg-[#ae884gold] disabled:bg-gray-400 font-medium"
                   >
                     {uploading
                       ? "Uploading..."
@@ -1414,18 +2045,22 @@ export default function CustomerProfilePage() {
                         </span>
 
                         <span className="text-xs font-semibold bg-gray-100 text-gray-800 px-2 py-0.5 rounded border border-gray-200">
-                          No: {doc.document_number || "N/A"}
+                          No:{" "}
+                          {doc.document_number ||
+                            "N/A"}
                         </span>
                       </div>
 
                       <p className="text-xs font-medium text-gray-800 mt-1">
                         Full Name:{" "}
-                        {doc.full_name || customer.name}
+                        {doc.full_name ||
+                          customer.name}
                       </p>
 
                       {doc.share_code && (
                         <p className="text-xs font-bold text-[#ae884e] mt-0.5">
-                          Share Code: {doc.share_code}
+                          Share Code:{" "}
+                          {doc.share_code}
                         </p>
                       )}
 
@@ -1433,33 +2068,47 @@ export default function CustomerProfilePage() {
                         Uploaded:{" "}
                         {new Date(
                           doc.created_at
-                        ).toLocaleDateString("en-GB")}
+                        ).toLocaleDateString(
+                          "en-GB"
+                        )}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => handleViewDocument(doc)}
-                        disabled={openingDocumentId === doc.id}
+                        onClick={() =>
+                          void handleViewDocument(
+                            doc
+                          )
+                        }
+                        disabled={
+                          openingDocumentId ===
+                          doc.id
+                        }
                         className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-50 border border-gray-300 text-[#1c3053] hover:bg-gray-100 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60 disabled:cursor-wait"
                       >
-                        {openingDocumentId === doc.id ? "Opening..." : "View File"}
+                        {openingDocumentId ===
+                        doc.id
+                          ? "Opening..."
+                          : "View File"}
                         <ExternalLink className="w-3 h-3" />
                       </button>
 
                       <select
                         value={doc.status}
                         onChange={(e) =>
-                          handleDocStatusChange(
+                          void handleDocStatusChange(
                             doc.id,
                             e.target.value
                           )
                         }
                         className={`text-xs font-bold rounded-lg px-2.5 py-1.5 border outline-none ${
-                          doc.status === "approved"
+                          doc.status ===
+                          "approved"
                             ? "bg-green-50 text-green-800 border-green-300"
-                            : doc.status === "rejected"
+                            : doc.status ===
+                              "rejected"
                             ? "bg-red-50 text-red-800 border-red-300"
                             : "bg-amber-50 text-amber-800 border-amber-300"
                         }`}
@@ -1467,22 +2116,24 @@ export default function CustomerProfilePage() {
                         <option value="under_review">
                           Under Review
                         </option>
-
                         <option value="approved">
                           Approved
                         </option>
-
                         <option value="rejected">
                           Rejected
                         </option>
                       </select>
 
                       <button
+                        type="button"
                         onClick={() =>
-                          handleDeleteDoc(doc.id)
+                          void handleDeleteDoc(
+                            doc.id
+                          )
                         }
                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Delete Document"
+                        aria-label="Delete document"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1493,7 +2144,6 @@ export default function CustomerProfilePage() {
             )}
           </div>
 
-          {/* Payment Status */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
               <div>
@@ -1508,6 +2158,7 @@ export default function CustomerProfilePage() {
               </div>
 
               <button
+                type="button"
                 onClick={openNewPaymentForm}
                 className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#1c3053] text-white rounded-xl text-xs font-semibold hover:bg-[#ae884e] transition-colors shadow-sm shrink-0"
               >
@@ -1572,15 +2223,24 @@ export default function CustomerProfilePage() {
                       value={paymentStatus}
                       onChange={(e) =>
                         setPaymentStatus(
-                          e.target.value as PaymentRecord["status"]
+                          e.target
+                            .value as PaymentRecord["status"]
                         )
                       }
                       className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg bg-white text-gray-900 outline-none focus:border-[#ae884e] focus:ring-1 focus:ring-[#ae884e]"
                     >
-                      <option value="unpaid">Unpaid</option>
-                      <option value="paid">Paid</option>
-                      <option value="partial">Partial</option>
-                      <option value="overdue">Overdue</option>
+                      <option value="unpaid">
+                        Unpaid
+                      </option>
+                      <option value="paid">
+                        Paid
+                      </option>
+                      <option value="partial">
+                        Partial
+                      </option>
+                      <option value="overdue">
+                        Overdue
+                      </option>
                     </select>
                   </div>
                 </div>
@@ -1597,7 +2257,9 @@ export default function CustomerProfilePage() {
                       step="0.01"
                       value={paymentAmount}
                       onChange={(e) =>
-                        setPaymentAmount(e.target.value)
+                        setPaymentAmount(
+                          e.target.value
+                        )
                       }
                       placeholder="1200.00"
                       className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg bg-white text-gray-900 outline-none focus:border-[#ae884e] focus:ring-1 focus:ring-[#ae884e]"
@@ -1613,7 +2275,9 @@ export default function CustomerProfilePage() {
                       type="date"
                       value={paymentDueDate}
                       onChange={(e) =>
-                        setPaymentDueDate(e.target.value)
+                        setPaymentDueDate(
+                          e.target.value
+                        )
                       }
                       className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg bg-white text-gray-900 outline-none focus:border-[#ae884e] focus:ring-1 focus:ring-[#ae884e]"
                     />
@@ -1628,7 +2292,9 @@ export default function CustomerProfilePage() {
                       type="date"
                       value={paymentPaidDate}
                       onChange={(e) =>
-                        setPaymentPaidDate(e.target.value)
+                        setPaymentPaidDate(
+                          e.target.value
+                        )
                       }
                       disabled={
                         paymentStatus !== "paid" &&
@@ -1648,7 +2314,9 @@ export default function CustomerProfilePage() {
                     rows={2}
                     value={paymentNotes}
                     onChange={(e) =>
-                      setPaymentNotes(e.target.value)
+                      setPaymentNotes(
+                        e.target.value
+                      )
                     }
                     placeholder="e.g. Paid by bank transfer..."
                     className="w-full p-3 text-xs border border-gray-300 rounded-lg bg-white text-gray-900 outline-none focus:border-[#ae884e] focus:ring-1 focus:ring-[#ae884e]"
@@ -1687,7 +2355,7 @@ export default function CustomerProfilePage() {
                 </p>
 
                 <p className="text-xs text-gray-400 mt-1">
-                  Use "Add Payment" to start tracking monthly payments.
+                  Use &quot;Add Payment&quot; to start tracking monthly payments.
                 </p>
               </div>
             ) : (
@@ -1771,8 +2439,11 @@ export default function CustomerProfilePage() {
 
                       <div className="flex items-center gap-2 shrink-0">
                         <button
+                          type="button"
                           onClick={() =>
-                            openEditPaymentForm(payment)
+                            openEditPaymentForm(
+                              payment
+                            )
                           }
                           className="inline-flex items-center justify-center px-3.5 py-1.5 bg-gray-50 border border-gray-200 text-[#1c3053] hover:bg-gray-100 rounded-lg text-xs font-semibold transition-colors"
                         >
@@ -1780,11 +2451,15 @@ export default function CustomerProfilePage() {
                         </button>
 
                         <button
+                          type="button"
                           onClick={() =>
-                            handleDeletePayment(payment.id)
+                            void handleDeletePayment(
+                              payment.id
+                            )
                           }
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete Payment Record"
+                          aria-label="Delete payment record"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1796,7 +2471,6 @@ export default function CustomerProfilePage() {
             )}
           </div>
 
-          {/* Viewing History */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-[#ae884e]" />
@@ -1816,16 +2490,17 @@ export default function CustomerProfilePage() {
                   >
                     <div>
                       <p className="text-sm font-semibold text-gray-900">
-                        {Array.isArray(booking.property)
-                          ? booking.property[0]?.title
-                          : booking.property?.title ||
-                            "Unknown Property"}
+                        {getPropertyTitle(
+                          booking.property
+                        )}
                       </p>
 
                       <p className="text-xs text-gray-500 mt-0.5">
                         {new Date(
                           booking.viewing_date
-                        ).toLocaleDateString("en-GB")}{" "}
+                        ).toLocaleDateString(
+                          "en-GB"
+                        )}{" "}
                         at{" "}
                         {String(
                           booking.start_time
@@ -1842,7 +2517,6 @@ export default function CustomerProfilePage() {
             )}
           </div>
 
-          {/* Message History */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-[#ae884e]" />

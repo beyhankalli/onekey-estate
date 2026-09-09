@@ -7,15 +7,25 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Heart, ArrowLeft, Home, ExternalLink, Trash2 } from "lucide-react";
 
+interface SavedProperty {
+  id: string;
+  title?: string | null;
+  short_location?: string | null;
+  property_type?: string | null;
+  price?: number | string | null;
+  images?: string[] | null;
+}
+
 export default function CustomerSavedPropertiesPage() {
-  const [savedProperties, setSavedProperties] = useState<any[]>([]);
+  const [savedProperties, setSavedProperties] = useState<SavedProperty[]>([]);
   const [loading, setLoading] = useState(true);
 
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     async function loadSavedProperties() {
+      const supabase = createClient();
+
       try {
         const {
           data: { user },
@@ -31,34 +41,52 @@ export default function CustomerSavedPropertiesPage() {
         const storedWishlist = localStorage.getItem("onekey_wishlist");
 
         if (storedWishlist) {
-          const ids = JSON.parse(storedWishlist);
+          try {
+            const ids: unknown = JSON.parse(storedWishlist);
 
-          if (Array.isArray(ids) && ids.length > 0) {
-            const { data, error } = await supabase
-              .from("properties")
-              .select("*")
-              .in("id", ids);
+            if (
+              Array.isArray(ids) &&
+              ids.length > 0 &&
+              ids.every((id): id is string => typeof id === "string")
+            ) {
+              const { data, error } = await supabase
+                .from("properties")
+                .select("*")
+                .in("id", ids);
 
-            if (error) throw error;
-            if (data) setSavedProperties(data);
+              if (error) {
+                throw error;
+              }
+
+              if (data) {
+                setSavedProperties(data as SavedProperty[]);
+              }
+            }
+          } catch (parseError) {
+            console.error("Failed to parse saved properties:", parseError);
           }
         }
-      } catch (err) {
-        console.error("Error loading saved properties:", err);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Unknown error occurred.";
+
+        console.error("Error loading saved properties:", message);
       } finally {
         setLoading(false);
       }
     }
 
     loadSavedProperties();
-  }, [router, supabase]);
+  }, [router]);
 
   const handleRemove = (id: string) => {
-    const updated = savedProperties.filter((p) => p.id !== id);
+    const updated = savedProperties.filter((property) => property.id !== id);
 
     setSavedProperties(updated);
 
-    const ids = updated.map((p) => p.id);
+    const ids = updated.map((property) => property.id);
     localStorage.setItem("onekey_wishlist", JSON.stringify(ids));
 
     window.dispatchEvent(new Event("storage"));
@@ -165,6 +193,7 @@ export default function CustomerSavedPropertiesPage() {
                       </Link>
 
                       <button
+                        type="button"
                         onClick={() => handleRemove(property.id)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Remove from saved"

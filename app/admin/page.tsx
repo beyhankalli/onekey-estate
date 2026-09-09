@@ -66,8 +66,435 @@ type Enquiry = {
   } | null;
 };
 
+type AdminUser = {
+  email: string | null;
+  name: string;
+};
+
+type DashboardData = {
+  stats: DashboardStats;
+  todaysViewings: Viewing[];
+  recentEnquiries: Enquiry[];
+  adminUser: AdminUser | null;
+  specialGreeting: string | null;
+  errorMessage: string | null;
+};
+
+type RawViewing = {
+  id: string;
+  viewing_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  property_id?: string | null;
+  customer_id?: string | null;
+};
+
+type RawEnquiry = {
+  id: string;
+  message?: string | null;
+  created_at: string;
+  is_read?: boolean | null;
+  sender_name?: string | null;
+  sender_email?: string | null;
+  customer_id?: string | null;
+};
+
+type RawProperty = {
+  id: string;
+  title?: string | null;
+  property_ref?: string | null;
+};
+
+type RawCustomer = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+};
+
+type RawAgent = {
+  name?: string | null;
+  email?: string | null;
+};
+
+type DashboardQueryError = {
+  message?: string;
+  code?: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (isRecord(error) && typeof error.message === "string") {
+    return error.message;
+  }
+
+  return "Unable to load dashboard information.";
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (isRecord(error) && typeof error.code === "string") {
+    return error.code;
+  }
+
+  return undefined;
+}
+
+function normalizeAgent(
+  value: unknown,
+  fallbackEmail: string | null
+): AdminUser {
+  const agent = isRecord(value) ? (value as RawAgent) : null;
+
+  return {
+    email: agent?.email || fallbackEmail,
+    name:
+      agent?.name ||
+      fallbackEmail?.split("@")[0] ||
+      "Admin",
+  };
+}
+
+async function loadDashboardData(
+  todayString: string
+): Promise<DashboardData> {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw userError;
+  }
+
+  let adminUser: AdminUser | null = null;
+
+  if (user) {
+    const { data: agentData, error: agentError } = await supabase
+      .from("agents")
+      .select("name, email")
+      .eq("email", user.email)
+      .maybeSingle();
+
+    if (agentError) {
+      console.error("Dashboard agent lookup error:", agentError);
+    }
+
+    adminUser = normalizeAgent(agentData, user.email ?? null);
+  }
+
+  const specialGreeting = getSpecialGreetingValue();
+
+  const [
+    activePropertiesResult,
+    pendingViewingsResult,
+    newLeadsResult,
+    messageCountResult,
+    confirmedViewingsResult,
+    completedViewingsResult,
+    unreadMessagesResult,
+    viewingsResult,
+    enquiriesResult,
+  ] = await Promise.all([
+    supabase
+      .from("properties")
+      .select("id", { count: "exact", head: true }),
+
+    supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending"),
+
+    supabase
+      .from("customers")
+      .select("id", { count: "exact", head: true })
+      .in("lead_status", ["New", "new"]),
+
+    supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true }),
+
+    supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "confirmed"),
+
+    supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "completed"),
+
+    supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("is_read", false),
+
+    supabase
+      .from("bookings")
+      .select(
+        "id, viewing_date, start_time, end_time, status, customer_name, customer_email, property_id, customer_id"
+      )
+      .eq("viewing_date", todayString)
+      .order("start_time", { ascending: true }),
+
+    supabase
+      .from("messages")
+      .select(
+        "id, message, created_at, is_read, sender_name, sender_email, customer_id"
+      )
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
+
+  const queryErrors = [
+    activePropertiesResult.error,
+    pendingViewingsResult.error,
+    newLeadsResult.error,
+    messageCountResult.error,
+    confirmedViewingsResult.error,
+    completedViewingsResult.error,
+    unreadMessagesResult.error,
+    viewingsResult.error,
+    enquiriesResult.error,
+  ].filter((error) => error !== null);
+
+  if (queryErrors.length > 0) {
+    console.error("Dashboard query errors:", queryErrors);
+  }
+
+  const viewingRows = Array.isArray(viewingsResult.data)
+    ? (viewingsResult.data as RawViewing[])
+    : [];
+
+  const enquiryRows = Array.isArray(enquiriesResult.data)
+    ? (enquiriesResult.data as RawEnquiry[])
+    : [];
+
+  const propertyIds = Array.from(
+    new Set(
+      viewingRows
+        .map((booking) => booking.property_id)
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  const customerIds = Array.from(
+    new Set(
+      [
+        ...viewingRows.map((booking) => booking.customer_id),
+        ...enquiryRows.map((message) => message.customer_id),
+      ].filter((id): id is string => Boolean(id))
+    )
+  );
+
+  const [propertiesLookupResult, customersLookupResult] =
+    await Promise.all([
+      propertyIds.length > 0
+        ? supabase
+            .from("properties")
+            .select("id, title, property_ref")
+            .in("id", propertyIds)
+        : Promise.resolve({ data: [], error: null }),
+
+      customerIds.length > 0
+        ? supabase
+            .from("customers")
+            .select("id, name, email")
+            .in("id", customerIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+  if (propertiesLookupResult.error) {
+    console.error(
+      "Dashboard property lookup error:",
+      propertiesLookupResult.error
+    );
+  }
+
+  if (customersLookupResult.error) {
+    console.error(
+      "Dashboard customer lookup error:",
+      customersLookupResult.error
+    );
+  }
+
+  const propertyRows = Array.isArray(propertiesLookupResult.data)
+    ? (propertiesLookupResult.data as RawProperty[])
+    : [];
+
+  const customerRows = Array.isArray(customersLookupResult.data)
+    ? (customersLookupResult.data as RawCustomer[])
+    : [];
+
+  const propertyMap = new Map(
+    propertyRows.map((property) => [property.id, property])
+  );
+
+  const customerMap = new Map(
+    customerRows.map((customer) => [customer.id, customer])
+  );
+
+  const mappedViewings: Viewing[] = viewingRows.map((booking) => ({
+    id: booking.id,
+    viewing_date: booking.viewing_date,
+    start_time: booking.start_time,
+    end_time: booking.end_time,
+    status: booking.status,
+    customer_name: booking.customer_name,
+    customer_email: booking.customer_email,
+    property: booking.property_id
+      ? propertyMap.get(booking.property_id) || null
+      : null,
+    customer: booking.customer_id
+      ? customerMap.get(booking.customer_id) || null
+      : null,
+  }));
+
+  const mappedEnquiries: Enquiry[] = enquiryRows.map((message) => ({
+    id: message.id,
+    message: message.message,
+    created_at: message.created_at,
+    is_read: message.is_read,
+    sender_name: message.sender_name,
+    sender_email: message.sender_email,
+    customer: message.customer_id
+      ? customerMap.get(message.customer_id) || null
+      : null,
+  }));
+
+  const errorsFromLookups = [
+    propertiesLookupResult.error,
+    customersLookupResult.error,
+  ].filter((error) => error !== null);
+
+  const allErrors = [...queryErrors, ...errorsFromLookups];
+
+  const firstError = allErrors[0];
+
+  const errorMessage = firstError
+    ? `${firstError.message || "Some dashboard data could not be loaded."}${
+        firstError.code ? ` | code=${firstError.code}` : ""
+      }`
+    : null;
+
+  return {
+    stats: {
+      activeProperties: activePropertiesResult.count || 0,
+      pendingViewings: pendingViewingsResult.count || 0,
+      newLeads: newLeadsResult.count || 0,
+      newMessages: messageCountResult.count || 0,
+      confirmedViewings: confirmedViewingsResult.count || 0,
+      completedViewings: completedViewingsResult.count || 0,
+      unreadMessages: unreadMessagesResult.count || 0,
+    },
+    todaysViewings: mappedViewings,
+    recentEnquiries: mappedEnquiries,
+    adminUser,
+    specialGreeting,
+    errorMessage,
+  };
+}
+
+function getSpecialGreetingValue(): string | null {
+  const currentDate = new Date();
+  const dayOfWeek = currentDate.getDay();
+  const month = currentDate.getMonth() + 1;
+  const day = currentDate.getDate();
+
+  if (dayOfWeek === 5) {
+    return "Blessed Friday / Jummah Mubarak";
+  }
+
+  if (
+    (month === 2 && day >= 17 && day <= 19) ||
+    (month === 3 && day <= 20)
+  ) {
+    return "Blessed Ramadan";
+  }
+
+  if (month === 3 && (day === 20 || day === 21)) {
+    return "Eid Mubarak";
+  }
+
+  return null;
+}
+
+function getGreetingValue(): string {
+  const hour = new Date().getHours();
+
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  if (hour >= 17 && hour < 22) return "Good evening";
+
+  return "Good night";
+}
+
+function getCustomer(viewing: Viewing) {
+  if (Array.isArray(viewing.customer)) {
+    return viewing.customer[0] || null;
+  }
+
+  return viewing.customer || null;
+}
+
+function getEnquiryCustomer(message: Enquiry) {
+  if (Array.isArray(message.customer)) {
+    return message.customer[0] || null;
+  }
+
+  return message.customer || null;
+}
+
+function formatTime(time?: string | null) {
+  if (!time) return "--:--";
+
+  return time.slice(0, 5);
+}
+
+function formatRelativeTime(dateString?: string | null) {
+  if (!dateString) return "";
+
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const now = new Date();
+
+  const diffMs = now.getTime() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
 export default function AdminDashboardPage() {
-  const [adminUser, setAdminUser] = useState<any>(null);
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
 
   const [stats, setStats] = useState<DashboardStats>({
     activeProperties: 0,
@@ -86,8 +513,6 @@ export default function AdminDashboardPage() {
   const [specialGreeting, setSpecialGreeting] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const supabase = createClient();
-
   const today = useMemo(() => new Date(), []);
 
   const todayString = useMemo(() => {
@@ -98,359 +523,61 @@ export default function AdminDashboardPage() {
     return `${year}-${month}-${day}`;
   }, [today]);
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-
-    if (hour >= 5 && hour < 12) return "Good morning";
-    if (hour >= 12 && hour < 17) return "Good afternoon";
-    if (hour >= 17 && hour < 22) return "Good evening";
-
-    return "Good night";
+  const applyDashboardData = (data: DashboardData) => {
+    setAdminUser(data.adminUser);
+    setStats(data.stats);
+    setTodaysViewings(data.todaysViewings);
+    setRecentEnquiries(data.recentEnquiries);
+    setSpecialGreeting(data.specialGreeting);
+    setErrorMessage(data.errorMessage);
   };
 
-  const getSpecialGreeting = () => {
-    const currentDate = new Date();
-    const dayOfWeek = currentDate.getDay();
-    const month = currentDate.getMonth() + 1;
-    const day = currentDate.getDate();
-
-    if (dayOfWeek === 5) {
-      return "Blessed Friday / Jummah Mubarak";
-    }
-
-    if (
-      (month === 2 && day >= 17 && day <= 19) ||
-      (month === 3 && day <= 20)
-    ) {
-      return "Blessed Ramadan";
-    }
-
-    if (month === 3 && (day === 20 || day === 21)) {
-      return "Eid Mubarak";
-    }
-
-    return null;
-  };
-
-  const getCustomer = (viewing: Viewing) => {
-    if (Array.isArray(viewing.customer)) {
-      return viewing.customer[0] || null;
-    }
-
-    return viewing.customer || null;
-  };
-
-  const getEnquiryCustomer = (message: Enquiry) => {
-    if (Array.isArray(message.customer)) {
-      return message.customer[0] || null;
-    }
-
-    return message.customer || null;
-  };
-
-  const formatTime = (time?: string | null) => {
-    if (!time) return "--:--";
-
-    return time.slice(0, 5);
-  };
-
-  const formatRelativeTime = (dateString?: string | null) => {
-    if (!dateString) return "";
-
-    const date = new Date(dateString);
-    const now = new Date();
-
-    const diffMs = now.getTime() - date.getTime();
-    const diffMinutes = Math.floor(diffMs / 60000);
-
-    if (diffMinutes < 1) return "Just now";
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-
-    const diffHours = Math.floor(diffMinutes / 60);
-
-    if (diffHours < 24) return `${diffHours}h ago`;
-
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays}d ago`;
-
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-    });
-  };
-
-  const fetchDashboardData = async (isRefresh = false) => {
+  const refreshDashboard = async () => {
     try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
+      setRefreshing(true);
       setErrorMessage(null);
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const data = await loadDashboardData(todayString);
 
-      if (userError) {
-        throw userError;
-      }
-
-      if (user) {
-        const { data: agentData } = await supabase
-          .from("agents")
-          .select("*")
-          .eq("email", user.email)
-          .maybeSingle();
-
-        setAdminUser(
-          agentData || {
-            email: user.email,
-            name:
-              user.user_metadata?.full_name ||
-              user.user_metadata?.name ||
-              user.email?.split("@")[0] ||
-              "Admin",
-          }
-        );
-      }
-
-      setSpecialGreeting(getSpecialGreeting());
-
-      const [
-        activePropertiesResult,
-        pendingViewingsResult,
-        newLeadsResult,
-        messageCountResult,
-        confirmedViewingsResult,
-        completedViewingsResult,
-        unreadMessagesResult,
-        viewingsResult,
-        enquiriesResult,
-      ] = await Promise.all([
-        supabase
-          .from("properties")
-          .select("id", { count: "exact", head: true }),
-
-        supabase
-          .from("bookings")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending"),
-
-        supabase
-          .from("customers")
-          .select("id", { count: "exact", head: true })
-          .in("lead_status", ["New", "new"]),
-
-        supabase
-          .from("messages")
-          .select("id", { count: "exact", head: true }),
-
-        supabase
-          .from("bookings")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "confirmed"),
-
-        supabase
-          .from("bookings")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "completed"),
-
-        supabase
-          .from("messages")
-          .select("id", { count: "exact", head: true })
-          .eq("is_read", false),
-
-        supabase
-          .from("bookings")
-          .select(
-            "id, viewing_date, start_time, end_time, status, customer_name, customer_email, property_id, customer_id"
-          )
-          .eq("viewing_date", todayString)
-          .order("start_time", { ascending: true }),
-
-        supabase
-          .from("messages")
-          .select(
-            "id, message, created_at, is_read, sender_name, sender_email, customer_id"
-          )
-          .order("created_at", { ascending: false })
-          .limit(5),
-      ]);
-
-      const queryErrors = [
-        activePropertiesResult.error,
-        pendingViewingsResult.error,
-        newLeadsResult.error,
-        messageCountResult.error,
-        confirmedViewingsResult.error,
-        completedViewingsResult.error,
-        unreadMessagesResult.error,
-        viewingsResult.error,
-        enquiriesResult.error,
-      ].filter(Boolean);
-
-      if (queryErrors.length > 0) {
-        console.error("Dashboard query errors:", queryErrors);
-      }
-
-      const viewingRows = (viewingsResult.data || []) as Array<{
-        id: string;
-        viewing_date: string;
-        start_time: string;
-        end_time: string;
-        status: string;
-        customer_name?: string | null;
-        customer_email?: string | null;
-        property_id?: string | null;
-        customer_id?: string | null;
-      }>;
-
-      const enquiryRows = (enquiriesResult.data || []) as Array<{
-        id: string;
-        message?: string | null;
-        created_at: string;
-        is_read?: boolean | null;
-        sender_name?: string | null;
-        sender_email?: string | null;
-        customer_id?: string | null;
-      }>;
-
-      const propertyIds = Array.from(
-        new Set(
-          viewingRows
-            .map((booking) => booking.property_id)
-            .filter((id): id is string => Boolean(id))
-        )
-      );
-
-      const customerIds = Array.from(
-        new Set(
-          [
-            ...viewingRows.map((booking) => booking.customer_id),
-            ...enquiryRows.map((message) => message.customer_id),
-          ].filter((id): id is string => Boolean(id))
-        )
-      );
-
-      const [propertiesLookupResult, customersLookupResult] =
-        await Promise.all([
-          propertyIds.length > 0
-            ? supabase
-                .from("properties")
-                .select("id, title, property_ref")
-                .in("id", propertyIds)
-            : Promise.resolve({ data: [], error: null }),
-
-          customerIds.length > 0
-            ? supabase
-                .from("customers")
-                .select("id, name, email")
-                .in("id", customerIds)
-            : Promise.resolve({ data: [], error: null }),
-        ]);
-
-      if (propertiesLookupResult.error) {
-        console.error(
-          "Dashboard property lookup error:",
-          propertiesLookupResult.error
-        );
-      }
-
-      if (customersLookupResult.error) {
-        console.error(
-          "Dashboard customer lookup error:",
-          customersLookupResult.error
-        );
-      }
-
-      const propertyMap = new Map(
-        ((propertiesLookupResult.data || []) as Array<{
-          id: string;
-          title?: string | null;
-          property_ref?: string | null;
-        }>).map((property) => [property.id, property])
-      );
-
-      const customerMap = new Map(
-        ((customersLookupResult.data || []) as Array<{
-          id: string;
-          name?: string | null;
-          email?: string | null;
-        }>).map((customer) => [customer.id, customer])
-      );
-
-      const mappedViewings: Viewing[] = viewingRows.map((booking) => ({
-        id: booking.id,
-        viewing_date: booking.viewing_date,
-        start_time: booking.start_time,
-        end_time: booking.end_time,
-        status: booking.status,
-        customer_name: booking.customer_name,
-        customer_email: booking.customer_email,
-        property: booking.property_id
-          ? propertyMap.get(booking.property_id) || null
-          : null,
-        customer: booking.customer_id
-          ? customerMap.get(booking.customer_id) || null
-          : null,
-      }));
-
-      const mappedEnquiries: Enquiry[] = enquiryRows.map((message) => ({
-        id: message.id,
-        message: message.message,
-        created_at: message.created_at,
-        is_read: message.is_read,
-        sender_name: message.sender_name,
-        sender_email: message.sender_email,
-        customer: message.customer_id
-          ? customerMap.get(message.customer_id) || null
-          : null,
-      }));
-
-      setStats({
-        activeProperties: activePropertiesResult.count || 0,
-        pendingViewings: pendingViewingsResult.count || 0,
-        newLeads: newLeadsResult.count || 0,
-        newMessages: messageCountResult.count || 0,
-        confirmedViewings: confirmedViewingsResult.count || 0,
-        completedViewings: completedViewingsResult.count || 0,
-        unreadMessages: unreadMessagesResult.count || 0,
-      });
-
-      setTodaysViewings(mappedViewings);
-      setRecentEnquiries(mappedEnquiries);
-
-      if (queryErrors.length > 0) {
-        const firstError = queryErrors[0] as {
-          message?: string;
-          code?: string;
-        };
-
-        setErrorMessage(
-          `${firstError?.message || "Some dashboard data could not be loaded."}${
-            firstError?.code ? ` | code=${firstError.code}` : ""
-          }`
-        );
-      }
-    } catch (error: any) {
+      applyDashboardData(data);
+    } catch (error: unknown) {
       console.error("Error loading dashboard:", error);
-      setErrorMessage(
-        error?.message || "Unable to load dashboard information."
-      );
+
+      setErrorMessage(getErrorMessage(error));
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const data = await loadDashboardData(todayString);
+
+        if (cancelled) return;
+
+        applyDashboardData(data);
+      } catch (error: unknown) {
+        if (cancelled) return;
+
+        console.error("Error loading dashboard:", error);
+
+        setErrorMessage(getErrorMessage(error));
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [todayString]);
 
   const name = adminUser?.name || "Admin";
 
@@ -537,8 +664,9 @@ export default function AdminDashboardPage() {
 
           <button
             type="button"
-            onClick={() => fetchDashboardData(true)}
-            className="text-xs font-semibold text-red-700 hover:underline"
+            onClick={refreshDashboard}
+            disabled={refreshing}
+            className="text-xs font-semibold text-red-700 hover:underline disabled:opacity-60"
           >
             Retry
           </button>
@@ -568,7 +696,7 @@ export default function AdminDashboardPage() {
               </div>
 
               <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
-                {getGreeting()}, {name}
+                {getGreetingValue()}, {name}
               </h1>
 
               <p className="text-sm text-white/65 mt-2 max-w-2xl">
@@ -606,7 +734,7 @@ export default function AdminDashboardPage() {
 
               <button
                 type="button"
-                onClick={() => fetchDashboardData(true)}
+                onClick={refreshDashboard}
                 disabled={refreshing}
                 className="inline-flex items-center justify-center gap-2 bg-white/10 border border-white/10 text-white px-4 py-3 rounded-xl text-sm font-semibold hover:bg-white/15 transition-colors disabled:opacity-60"
               >

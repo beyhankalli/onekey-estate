@@ -25,6 +25,34 @@ interface Agent {
   name: string;
 }
 
+interface BookingProperty {
+  title: string;
+  property_ref: string;
+}
+
+interface BookingAgent {
+  name: string;
+}
+
+interface RawBooking {
+  id?: unknown;
+  property_id?: unknown;
+  agent_id?: unknown;
+  viewing_date?: unknown;
+  start_time?: unknown;
+  end_time?: unknown;
+  customer_name?: unknown;
+  customer_email?: unknown;
+  customer_phone?: unknown;
+  message?: unknown;
+  internal_notes?: unknown;
+  status?: unknown;
+  created_at?: unknown;
+  updated_at?: unknown;
+  property?: BookingProperty | BookingProperty[] | null;
+  agent?: BookingAgent | BookingAgent[] | null;
+}
+
 interface Booking {
   id: string;
   property_id: string | null;
@@ -37,16 +65,11 @@ interface Booking {
   customer_phone: string;
   message: string | null;
   internal_notes: string | null;
-  status: string;
+  status: BookingStatus;
   created_at: string;
   updated_at: string | null;
-  property?: {
-    title: string;
-    property_ref: string;
-  } | null;
-  agent?: {
-    name: string;
-  } | null;
+  property?: BookingProperty | null;
+  agent?: BookingAgent | null;
 }
 
 type BookingStatus =
@@ -66,38 +89,108 @@ const VALID_STATUSES: BookingStatus[] = [
   "no-show",
 ];
 
-function normalizeBooking(raw: any): Booking {
-  const status = VALID_STATUSES.includes(raw?.status)
+function isBookingStatus(value: unknown): value is BookingStatus {
+  return (
+    typeof value === "string" &&
+    VALID_STATUSES.includes(value as BookingStatus)
+  );
+}
+
+function getNullableString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function normalizeBooking(raw: RawBooking): Booking {
+  const status = isBookingStatus(raw.status)
     ? raw.status
     : "pending";
 
-  const property = Array.isArray(raw?.property)
+  const property = Array.isArray(raw.property)
     ? raw.property[0] ?? null
-    : raw?.property ?? null;
+    : raw.property ?? null;
 
-  const agent = Array.isArray(raw?.agent)
+  const agent = Array.isArray(raw.agent)
     ? raw.agent[0] ?? null
-    : raw?.agent ?? null;
+    : raw.agent ?? null;
 
   return {
-    id: String(raw?.id ?? ""),
-    property_id: raw?.property_id ?? null,
-    agent_id: raw?.agent_id ?? null,
-    viewing_date: String(raw?.viewing_date ?? ""),
-    start_time: String(raw?.start_time ?? ""),
-    end_time: String(raw?.end_time ?? ""),
-    customer_name: String(raw?.customer_name ?? ""),
-    customer_email: raw?.customer_email ?? null,
-    customer_phone: String(raw?.customer_phone ?? ""),
-    message: raw?.message ?? null,
-    internal_notes: raw?.internal_notes ?? null,
+    id: String(raw.id ?? ""),
+    property_id: getNullableString(raw.property_id),
+    agent_id: getNullableString(raw.agent_id),
+    viewing_date: String(raw.viewing_date ?? ""),
+    start_time: String(raw.start_time ?? ""),
+    end_time: String(raw.end_time ?? ""),
+    customer_name: String(raw.customer_name ?? ""),
+    customer_email: getNullableString(raw.customer_email),
+    customer_phone: String(raw.customer_phone ?? ""),
+    message: getNullableString(raw.message),
+    internal_notes: getNullableString(raw.internal_notes),
     status,
-    created_at: String(raw?.created_at ?? ""),
-    updated_at: raw?.updated_at ?? null,
+    created_at: String(raw.created_at ?? ""),
+    updated_at: getNullableString(raw.updated_at),
     property,
     agent,
   };
 }
+
+interface BookingsData {
+  bookings: Booking[];
+  agents: Agent[];
+}
+
+const loadBookingsData = async (): Promise<BookingsData> => {
+  const supabase = createClient();
+
+  const [bookingsResult, agentsResult] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select(
+        "id, property_id, agent_id, viewing_date, start_time, end_time, customer_name, customer_email, customer_phone, message, internal_notes, status, created_at, updated_at, property:properties(title, property_ref), agent:agents(name)"
+      )
+      .order("viewing_date", { ascending: false })
+      .order("start_time", { ascending: true }),
+
+    supabase
+      .from("agents")
+      .select("id, name")
+      .order("name", { ascending: true }),
+  ]);
+
+  if (bookingsResult.error) {
+    throw bookingsResult.error;
+  }
+
+  if (agentsResult.error) {
+    throw agentsResult.error;
+  }
+
+  return {
+    bookings: (bookingsResult.data ?? []).map((booking) =>
+      normalizeBooking(booking as RawBooking)
+    ),
+    agents: (agentsResult.data ?? []).map((agent) => ({
+      id: String(agent.id),
+      name: String(agent.name),
+    })),
+  };
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return "An unexpected error occurred.";
+};
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -105,7 +198,8 @@ export default function AdminBookingsPage() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  const [editingBooking, setEditingBooking] =
+    useState<Booking | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
@@ -113,53 +207,54 @@ export default function AdminBookingsPage() {
   const [editNotes, setEditNotes] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
-  const supabase = createClient();
-
-  const fetchBookings = async () => {
+  const fetchData = async () => {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("bookings")
-      .select(
-        "*, property:properties(title, property_ref), agent:agents(name)"
-      )
-      .order("viewing_date", { ascending: false })
-      .order("start_time", { ascending: true });
+    try {
+      const data = await loadBookingsData();
 
-    if (error) {
-      console.error("Error fetching bookings:", error);
-      setBookings([]);
-    } else {
-      setBookings((data ?? []).map(normalizeBooking));
-    }
-
-    setLoading(false);
-  };
-
-  const fetchAgents = async () => {
-    const { data, error } = await supabase
-      .from("agents")
-      .select("id, name")
-      .order("name", { ascending: true });
-
-    if (error) {
-      console.error("Error fetching agents:", error);
-      return;
-    }
-
-    if (data) {
-      setAgents(
-        data.map((agent) => ({
-          id: String(agent.id),
-          name: String(agent.name),
-        }))
-      );
+      setBookings(data.bookings);
+      setAgents(data.agents);
+    } catch (err: unknown) {
+      console.error("Error fetching bookings data:", err);
+      alert("Error loading bookings: " + getErrorMessage(err));
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchBookings();
-    fetchAgents();
+    let isMounted = true;
+
+    const load = async () => {
+      try {
+        const data = await loadBookingsData();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setBookings(data.bookings);
+        setAgents(data.agents);
+      } catch (err: unknown) {
+        if (!isMounted) {
+          return;
+        }
+
+        console.error("Error fetching bookings data:", err);
+        alert("Error loading bookings: " + getErrorMessage(err));
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const updateStatus = async (
@@ -169,6 +264,8 @@ export default function AdminBookingsPage() {
     setUpdatingId(id);
 
     try {
+      const supabase = createClient();
+
       const { error } = await supabase
         .from("bookings")
         .update({
@@ -203,14 +300,14 @@ export default function AdminBookingsPage() {
             await notificationResponse.text()
           );
         }
-      } catch (emailError) {
+      } catch (emailError: unknown) {
         console.error(
           "Booking status email request failed:",
           emailError
         );
       }
 
-      await fetchBookings();
+      await fetchData();
     } finally {
       setUpdatingId(null);
     }
@@ -226,7 +323,9 @@ export default function AdminBookingsPage() {
   };
 
   const closeEditBooking = () => {
-    if (savingEdit) return;
+    if (savingEdit) {
+      return;
+    }
 
     setEditingBooking(null);
     setEditDate("");
@@ -237,7 +336,9 @@ export default function AdminBookingsPage() {
   };
 
   const saveBookingChanges = async () => {
-    if (!editingBooking) return;
+    if (!editingBooking) {
+      return;
+    }
 
     if (!editDate || !editStartTime || !editEndTime) {
       alert("Date, start time and end time are required.");
@@ -252,6 +353,8 @@ export default function AdminBookingsPage() {
     setSavingEdit(true);
 
     try {
+      const supabase = createClient();
+
       const { error } = await supabase
         .from("bookings")
         .update({
@@ -270,14 +373,14 @@ export default function AdminBookingsPage() {
       }
 
       closeEditBooking();
-      await fetchBookings();
+      await fetchData();
     } finally {
       setSavingEdit(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
+  const getStatusBadge = (status: BookingStatus) => {
+    const styles: Record<BookingStatus, string> = {
       pending: "bg-blue-100 text-blue-800",
       confirmed: "bg-green-100 text-green-800",
       rejected: "bg-red-100 text-red-800",
@@ -286,7 +389,7 @@ export default function AdminBookingsPage() {
       "no-show": "bg-orange-100 text-orange-800",
     };
 
-    const labels: Record<string, string> = {
+    const labels: Record<BookingStatus, string> = {
       pending: "Pending",
       confirmed: "Confirmed",
       rejected: "Rejected",
@@ -297,11 +400,9 @@ export default function AdminBookingsPage() {
 
     return (
       <span
-        className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold uppercase ${
-          styles[status] || styles.pending
-        }`}
+        className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold uppercase ${styles[status]}`}
       >
-        {labels[status] || status}
+        {labels[status]}
       </span>
     );
   };
@@ -514,6 +615,7 @@ export default function AdminBookingsPage() {
                       <td className="p-5 text-right align-top">
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           <button
+                            type="button"
                             onClick={() => openEditBooking(b)}
                             disabled={isUpdating}
                             className="p-2 bg-[#1c3053]/5 text-[#1c3053] hover:bg-[#1c3053]/10 rounded-lg disabled:opacity-50 transition-colors"
@@ -525,8 +627,9 @@ export default function AdminBookingsPage() {
                           {b.status === "pending" && (
                             <>
                               <button
+                                type="button"
                                 onClick={() =>
-                                  updateStatus(b.id, "confirmed")
+                                  void updateStatus(b.id, "confirmed")
                                 }
                                 disabled={isUpdating}
                                 className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg disabled:opacity-50 transition-colors"
@@ -540,8 +643,9 @@ export default function AdminBookingsPage() {
                               </button>
 
                               <button
+                                type="button"
                                 onClick={() =>
-                                  updateStatus(b.id, "rejected")
+                                  void updateStatus(b.id, "rejected")
                                 }
                                 disabled={isUpdating}
                                 className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg disabled:opacity-50 transition-colors"
@@ -555,8 +659,9 @@ export default function AdminBookingsPage() {
                           {b.status === "confirmed" && (
                             <>
                               <button
+                                type="button"
                                 onClick={() =>
-                                  updateStatus(b.id, "completed")
+                                  void updateStatus(b.id, "completed")
                                 }
                                 disabled={isUpdating}
                                 className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-lg disabled:opacity-50 transition-colors"
@@ -566,8 +671,9 @@ export default function AdminBookingsPage() {
                               </button>
 
                               <button
+                                type="button"
                                 onClick={() =>
-                                  updateStatus(b.id, "no-show")
+                                  void updateStatus(b.id, "no-show")
                                 }
                                 disabled={isUpdating}
                                 className="p-2 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg disabled:opacity-50 transition-colors"
@@ -577,8 +683,9 @@ export default function AdminBookingsPage() {
                               </button>
 
                               <button
+                                type="button"
                                 onClick={() =>
-                                  updateStatus(b.id, "cancelled")
+                                  void updateStatus(b.id, "cancelled")
                                 }
                                 disabled={isUpdating}
                                 className="p-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50 transition-colors"
@@ -615,6 +722,7 @@ export default function AdminBookingsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={closeEditBooking}
                 disabled={savingEdit}
                 className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-50"
@@ -636,6 +744,7 @@ export default function AdminBookingsPage() {
 
                     <input
                       type="date"
+                      min={new Date().toISOString().split("T")[0]}
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
                       disabled={savingEdit}
@@ -680,7 +789,9 @@ export default function AdminBookingsPage() {
                     <input
                       type="time"
                       value={editStartTime}
-                      onChange={(e) => setEditStartTime(e.target.value)}
+                      onChange={(e) =>
+                        setEditStartTime(e.target.value)
+                      }
                       disabled={savingEdit}
                       className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#ae884e]/20 focus:border-[#ae884e] disabled:bg-gray-50"
                     />
@@ -698,7 +809,9 @@ export default function AdminBookingsPage() {
                     <input
                       type="time"
                       value={editEndTime}
-                      onChange={(e) => setEditEndTime(e.target.value)}
+                      onChange={(e) =>
+                        setEditEndTime(e.target.value)
+                      }
                       disabled={savingEdit}
                       className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#ae884e]/20 focus:border-[#ae884e] disabled:bg-gray-50"
                     />
@@ -795,6 +908,7 @@ export default function AdminBookingsPage() {
 
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 bg-gray-50/50">
               <button
+                type="button"
                 onClick={closeEditBooking}
                 disabled={savingEdit}
                 className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
@@ -803,7 +917,8 @@ export default function AdminBookingsPage() {
               </button>
 
               <button
-                onClick={saveBookingChanges}
+                type="button"
+                onClick={() => void saveBookingChanges()}
                 disabled={savingEdit}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#1c3053] hover:bg-[#ae884e] text-white transition-colors disabled:opacity-50"
               >

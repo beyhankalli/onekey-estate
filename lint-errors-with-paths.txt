@@ -1,0 +1,759 @@
+﻿
+C:\Users\hbeyh\Documents\onekey-estate\app\account\applications\page.tsx
+  10:52  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\account\bookings\page.tsx
+  20:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\account\documents\page.tsx
+   10:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   93:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  109:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  119:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\account\page.tsx
+   14:44   error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+   15:58   error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+   16:44   error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+   17:44   error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+   18:52   error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+   19:44   error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  184:55   error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  245:122  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\account\payments\page.tsx
+   14:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   15:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   16:48  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  108:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\account\profile\page.tsx
+  59:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\account\saved-properties\page.tsx
+  11:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\account\saved-searches\page.tsx
+  10:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\agents\page.tsx
+  284:10  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\applications\page.tsx
+  170:36  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                       @typescript-eslint/no-explicit-any
+  317:19  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                       @typescript-eslint/no-explicit-any
+  325:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+  403:19  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                       @typescript-eslint/no-explicit-any
+  506:19  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                       @typescript-eslint/no-explicit-any
+  575:19  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                       @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\audit-log\page.tsx
+   24:34  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                    @typescript-eslint/no-explicit-any
+   49:51  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                    @typescript-eslint/no-explicit-any
+   99:19  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                    @typescript-eslint/no-explicit-any
+  109:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\blocked-dates\page.tsx
+   8:40  error  Unexpected any. Specify a different type                                                               
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                           @typescript-eslint/no-explicit-any
+   9:40  error  Unexpected any. Specify a different type                                                               
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                           @typescript-eslint/no-explicit-any
+  42:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\bookings\page.tsx
+   69:32  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                         @typescript-eslint/no-explicit-any
+  161:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\customers\[id]\page.tsx
+    41:21  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   141:7   error  Error: Cannot access variable before it is declared
+   187:37  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   277:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   296:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   332:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   353:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   415:41  error  Error: Cannot call impure function during render
+  417 |       const { error: uploadError } = await supabase.storage
+   447:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   473:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   583:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   613:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+   729:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          @typescript-eslint/no-explicit-any
+  1039:18  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                      
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          react/no-unescaped-entities
+  1690:23  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                      
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          react/no-unescaped-entities
+  1690:35  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                      
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+          react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\customers\new\page.tsx
+  69:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\customers\page.tsx
+   9:46  error  Unexpected any. Specify a different type                                                               
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                 @typescript-eslint/no-explicit-any
+  17:5   error  Error: Cannot access variable before it is declared
+  46:19  error  Unexpected any. Specify a different type                                                               
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                 @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\leads\page.tsx
+  238:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+  390:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                             @typescript-eslint/no-explicit-any
+  458:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                             @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\messages\page.tsx
+   78:32  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+  @typescript-eslint/no-explicit-any
+  101:9   error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+  @typescript-eslint/no-explicit-any
+  115:39  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+  @typescript-eslint/no-explicit-any
+  292:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+  296:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+  302:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+  615:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\page.tsx
+   70:46  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                  @typescript-eslint/no-explicit-any
+  440:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                  @typescript-eslint/no-explicit-any
+  452:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\portal-integrations\page.tsx
+  216:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\properties\[id]\edit\page.tsx
+  1057:14  error  Error: Cannot create components during render
+  1062:14  error  Error: Cannot create components during render
+  1067:14  error  Error: Cannot create components during render
+  1162:14  error  Error: Cannot create components during render
+  1167:14  error  Error: Cannot create components during render
+  1172:14  error  Error: Cannot create components during render
+  1177:14  error  Error: Cannot create components during render
+  1182:14  error  Error: Cannot create components during render
+  1184:14  error  Error: Cannot create components during render
+  1186:14  error  Error: Cannot create components during render
+  1210:12  error  Error: Cannot create components during render
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\properties\new\page.tsx
+    33:40  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                      @typescript-eslint/no-explicit-any
+   417:21  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                      @typescript-eslint/no-explicit-any
+   918:14  error  Error: Cannot create components during render
+   923:14  error  Error: Cannot create components during render
+   928:14  error  Error: Cannot create components during render
+  1063:14  error  Error: Cannot create components during render
+  1068:14  error  Error: Cannot create components during render
+  1073:14  error  Error: Cannot create components during render
+  1078:14  error  Error: Cannot create components during render
+  1083:14  error  Error: Cannot create components during render
+  1088:14  error  Error: Cannot create components during render
+  1093:14  error  Error: Cannot create components during render
+  1119:12  error  Error: Cannot create components during render
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\properties\page.tsx
+  43:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\reports\page.tsx
+  179:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  184:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  190:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  195:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  200:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  206:27  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  212:27  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  218:27  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  228:24  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  234:23  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  240:36  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  294:24  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  298:24  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  302:24  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  310:26  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  346:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                   @typescript-eslint/no-explicit-any
+  365:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\reviews\page.tsx
+   76:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+  314:71  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                     react/no-unescaped-entities
+  314:85  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                     react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\admin\whatsapp\page.tsx
+  227:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+  246:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+  331:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                     @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\api\admin\agents\create\route.ts
+  159:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\error.tsx
+  34:20  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\forgot-password\page.tsx
+  28:19  error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  45:42  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\global-error.tsx
+  32:24  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\listings\[id]\page.tsx
+    39:44  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                           @typescript-eslint/no-explicit-any
+   331:19  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                           @typescript-eslint/no-explicit-any
+   401:21  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                           @typescript-eslint/no-explicit-any
+   480:12  error  Unexpected any. Specify a different type                                                             
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                           @typescript-eslint/no-explicit-any
+   665:18  error  Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following 
+line is error-free                                                                                                     
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                               @typescript-eslint/ban-ts-comment
+   867:20  error  Error: Cannot create components during render
+   876:20  error  Error: Cannot create components during render
+   885:20  error  Error: Cannot create components during render
+   890:20  error  Error: Cannot create components during render
+   897:20  error  Error: Cannot create components during render
+   912:20  error  Error: Cannot create components during render
+   921:20  error  Error: Cannot create components during render
+   930:20  error  Error: Cannot create components during render
+   945:20  error  Error: Cannot create components during render
+   952:20  error  Error: Cannot create components during render
+   959:20  error  Error: Cannot create components during render
+   966:20  error  Error: Cannot create components during render
+   979:20  error  Error: Cannot create components during render
+   984:20  error  Error: Cannot create components during render
+   989:20  error  Error: Cannot create components during render
+   994:20  error  Error: Cannot create components during render
+  1002:20  error  Error: Cannot create components during render
+  1008:20  error  Error: Cannot create components during render
+  1016:20  error  Error: Cannot create components during render
+  1024:20  error  Error: Cannot create components during render
+  1030:20  error  Error: Cannot create components during render
+  1141:19  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                      
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                           react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\listings\page.tsx
+  165:21  error  Unexpected any. Specify a different type                                                              
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                                       
+                                                                                                   
+@typescript-eslint/no-explicit-any
+  184:11  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\app\login\page.tsx
+  446:26  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\privacy-policy\page.tsx
+   31:18  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   31:25  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   31:28  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   31:31  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   31:34  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   31:37  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   31:42  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   31:46  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   42:45  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   42:53  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   44:45  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   44:50  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   86:18  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   86:22  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  248:63  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  397:49  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  467:43  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  697:67  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  877:29  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  883:25  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  907:29  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  907:40  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  907:44  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\register\page.tsx
+  111:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\reviews\page.tsx
+   8:42  error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  44:71  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  44:85  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\terms-of-service\page.tsx
+  392:49  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  720:49  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+C:\Users\hbeyh\Documents\onekey-estate\app\update-password\page.tsx
+  84:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\app\wishlist\page.tsx
+  12:48  error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  75:35  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  91:25  error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\components\HomeFeaturedProperties.tsx
+  17:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  57:31  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  60:13  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  60:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\hbeyh\Documents\onekey-estate\context\CompareContext.tsx
+  44:11  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+C:\Users\hbeyh\Documents\onekey-estate\context\WishlistContext.tsx
+  22:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+Ô£û 193 problems (193 errors, 0 warnings)
+
+

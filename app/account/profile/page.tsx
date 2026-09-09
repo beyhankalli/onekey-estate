@@ -4,13 +4,26 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { User, Phone, Mail, ArrowLeft, Info, Hash } from "lucide-react";
+import {
+  User,
+  Phone,
+  Mail,
+  ArrowLeft,
+  Info,
+  Hash,
+} from "lucide-react";
+
+interface ProfileData {
+  accountNumber: string;
+  name: string;
+  email: string;
+  phone: string;
+}
 
 export default function CustomerProfilePage() {
   const [loading, setLoading] = useState(true);
-  
-  // Sadece verileri gösterecegimiz için state'i okuma odakli yapiyoruz
-  const [profileData, setProfileData] = useState({
+
+  const [profileData, setProfileData] = useState<ProfileData>({
     accountNumber: "",
     name: "",
     email: "",
@@ -18,14 +31,19 @@ export default function CustomerProfilePage() {
   });
 
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     let active = true;
 
     async function loadProfile() {
+      const supabase = createClient();
+
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
         if (authError || !user) {
           router.replace("/login");
           return;
@@ -37,7 +55,9 @@ export default function CustomerProfilePage() {
           .eq("auth_user_id", user.id)
           .maybeSingle();
 
-        if (customerError) throw customerError;
+        if (customerError) {
+          throw customerError;
+        }
 
         if (!customer || customer.is_active === false) {
           await supabase.auth.signOut();
@@ -49,25 +69,44 @@ export default function CustomerProfilePage() {
           console.warn("Customer account number is not assigned yet.");
         }
 
-        if (!active) return;
+        if (!active) {
+          return;
+        }
+
         setProfileData({
           accountNumber: customer.account_number || "Pending...",
-          name: customer.name || user.user_metadata?.full_name || "Not specified",
+          name:
+            customer.name ||
+            user.user_metadata?.full_name ||
+            "Not specified",
           email: customer.email || user.email || "",
           phone: customer.phone || "Not specified",
         });
-      } catch (err: any) {
-        console.error("Failed to load profile details:", err.message);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Unknown error occurred.";
+
+        console.error("Failed to load profile details:", message);
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
     loadProfile();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const supabase = createClient();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session?.user) {
-        if (active) router.replace("/login");
+        if (active) {
+          router.replace("/login");
+        }
       }
     });
 
@@ -75,7 +114,7 @@ export default function CustomerProfilePage() {
       active = false;
       subscription.unsubscribe();
     };
-  }, [router, supabase]);
+  }, [router]);
 
   if (loading) {
     return (
@@ -90,27 +129,35 @@ export default function CustomerProfilePage() {
       <div className="bg-[#1c3053] text-white pt-32 pb-12 px-4 sm:px-8 shadow-md">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div>
-            <Link href="/account" className="inline-flex items-center gap-1.5 text-xs text-[#ae884e] font-semibold uppercase tracking-wider mb-3 hover:underline">
+            <Link
+              href="/account"
+              className="inline-flex items-center gap-1.5 text-xs text-[#ae884e] font-semibold uppercase tracking-wider mb-3 hover:underline"
+            >
               <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
             </Link>
+
             <h1 className="text-3xl font-semibold">Account Profile</h1>
-            <p className="text-gray-300 text-sm font-light mt-2">View your personal contact information and account ID.</p>
+
+            <p className="text-gray-300 text-sm font-light mt-2">
+              View your personal contact information and account ID.
+            </p>
           </div>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-8 -mt-6">
         <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 p-6 sm:p-8 animate-in fade-in duration-300">
-          
           <div className="space-y-6">
-            
-            {/* 6 Haneli Hesap Numarasi Alani */}
             <div>
-              <label className="block text-sm font-bold text-[#1c3053] mb-2 uppercase tracking-wide">Account Number</label>
+              <label className="block text-sm font-bold text-[#1c3053] mb-2 uppercase tracking-wide">
+                Account Number
+              </label>
+
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#ae884e]">
                   <Hash className="w-5 h-5" />
                 </div>
+
                 <input
                   type="text"
                   disabled
@@ -121,11 +168,15 @@ export default function CustomerProfilePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Full Name</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+                Full Name
+              </label>
+
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <User className="w-4 h-4" />
                 </div>
+
                 <input
                   type="text"
                   disabled
@@ -136,11 +187,15 @@ export default function CustomerProfilePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Email Address</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+                Email Address
+              </label>
+
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <Mail className="w-4 h-4" />
                 </div>
+
                 <input
                   type="email"
                   disabled
@@ -151,11 +206,15 @@ export default function CustomerProfilePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Phone Number</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+                Phone Number
+              </label>
+
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <Phone className="w-4 h-4" />
                 </div>
+
                 <input
                   type="text"
                   disabled
@@ -165,23 +224,29 @@ export default function CustomerProfilePage() {
               </div>
             </div>
 
-            {/* Bilgilendirme Kutusu ve Iletisim Yönlendirmesi */}
             <div className="mt-8 bg-blue-50 border border-blue-100 rounded-xl p-5 flex gap-4 items-start">
               <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+
               <div>
-                <h4 className="text-sm font-bold text-blue-900 mb-1">Need to update your details?</h4>
+                <h4 className="text-sm font-bold text-blue-900 mb-1">
+                  Need to update your details?
+                </h4>
+
                 <p className="text-xs text-blue-800 leading-relaxed mb-3">
-                  For security reasons, your profile information cannot be changed directly from this panel. If you need to update your name, email, or phone number, please contact our support team.
+                  For security reasons, your profile information cannot be
+                  changed directly from this panel. If you need to update your
+                  name, email, or phone number, please contact our support
+                  team.
                 </p>
-                <Link 
-                  href="/contact" 
+
+                <Link
+                  href="/contact"
                   className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
                 >
                   Contact Support
                 </Link>
               </div>
             </div>
-
           </div>
         </div>
       </div>

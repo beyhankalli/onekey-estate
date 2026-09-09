@@ -14,14 +14,18 @@ import {
   User,
 } from "lucide-react";
 
+type AuditAction = "INSERT" | "UPDATE" | "DELETE";
+
+type AuditChangedFields = Record<string, unknown>;
+
 type AuditLog = {
   id: string;
   table_name: string;
   record_id: string | null;
-  action: "INSERT" | "UPDATE" | "DELETE";
+  action: AuditAction;
   actor_user_id: string | null;
   actor_email: string | null;
-  changed_fields: Record<string, any> | null;
+  changed_fields: AuditChangedFields | null;
   created_at: string;
 };
 
@@ -33,23 +37,30 @@ function formatTableName(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function formatAction(action: AuditLog["action"]) {
+function formatAction(action: AuditAction) {
   if (action === "INSERT") return "Created";
   if (action === "UPDATE") return "Updated";
   return "Deleted";
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString("en-GB", {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
   });
 }
 
-function summariseChanges(changes: Record<string, any> | null) {
+function summariseChanges(changes: AuditChangedFields | null) {
   if (!changes) return "No field details recorded.";
 
   const keys = Object.keys(changes);
+
   if (!keys.length) return "No field changes recorded.";
 
   if (keys.length <= 4) {
@@ -62,9 +73,42 @@ function summariseChanges(changes: Record<string, any> | null) {
     .join(", ")} +${keys.length - 4} more`;
 }
 
-export default function AdminAuditLogPage() {
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message || "Unable to load the audit log.";
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message || "Unable to load the audit log.";
+  }
+
+  return "Unable to load the audit log.";
+}
+
+async function loadLogsData(): Promise<AuditLog[]> {
   const supabase = createClient();
 
+  const { data, error: queryError } = await supabase
+    .from("audit_logs")
+    .select(
+      "id, table_name, record_id, action, actor_user_id, actor_email, changed_fields, created_at"
+    )
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  if (queryError) {
+    throw queryError;
+  }
+
+  return (data ?? []) as AuditLog[];
+}
+
+export default function AdminAuditLogPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,20 +129,11 @@ export default function AdminAuditLogPage() {
         setLoading(true);
       }
 
-      const { data, error: queryError } = await supabase
-        .from("audit_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500);
-
-      if (queryError) {
-        throw queryError;
-      }
-
-      setLogs((data as AuditLog[]) || []);
-    } catch (err: any) {
+      const data = await loadLogsData();
+      setLogs(data);
+    } catch (err: unknown) {
       console.error("Error loading audit log:", err);
-      setError(err?.message || "Unable to load the audit log.");
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -106,7 +141,32 @@ export default function AdminAuditLogPage() {
   };
 
   useEffect(() => {
-    loadLogs();
+    let cancelled = false;
+
+    const loadInitialLogs = async () => {
+      try {
+        const data = await loadLogsData();
+
+        if (cancelled) return;
+
+        setLogs(data);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          console.error("Error loading audit log:", err);
+          setError(getErrorMessage(err));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadInitialLogs();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const tableOptions = useMemo(() => {
@@ -181,7 +241,7 @@ export default function AdminAuditLogPage() {
 
         <button
           type="button"
-          onClick={() => loadLogs(true)}
+          onClick={() => void loadLogs(true)}
           disabled={refreshing}
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:border-[#ae884e] hover:text-[#ae884e] transition-colors disabled:opacity-60"
         >
@@ -252,9 +312,7 @@ export default function AdminAuditLogPage() {
               <option key={item} value={item}>
                 {item === "ALL"
                   ? "All actions"
-                  : formatAction(
-                      item as AuditLog["action"]
-                    )}
+                  : formatAction(item as AuditAction)}
               </option>
             ))}
           </select>
@@ -341,9 +399,7 @@ export default function AdminAuditLogPage() {
 
                         <p className="text-xs text-gray-400 mt-1 truncate">
                           Record: {log.record_id || "N/A"} ·{" "}
-                          {summariseChanges(
-                            log.changed_fields
-                          )}
+                          {summariseChanges(log.changed_fields)}
                         </p>
                       </div>
 
@@ -361,9 +417,7 @@ export default function AdminAuditLogPage() {
 
                         <ChevronDown
                           className={`w-4 h-4 text-gray-400 transition-transform ${
-                            expanded
-                              ? "rotate-180"
-                              : ""
+                            expanded ? "rotate-180" : ""
                           }`}
                         />
                       </div>
@@ -393,9 +447,7 @@ export default function AdminAuditLogPage() {
 
                         <Detail
                           label="Actor user ID"
-                          value={
-                            log.actor_user_id || "N/A"
-                          }
+                          value={log.actor_user_id || "N/A"}
                         />
                       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -59,6 +59,14 @@ type LeadActivity = {
   created_at: string;
 };
 
+type ActivityForm = {
+  activity_type: string;
+  subject: string;
+  description: string;
+  outcome: string;
+  follow_up_at: string;
+};
+
 const STATUSES = [
   "New",
   "Contacted",
@@ -101,6 +109,19 @@ const ACTIVITY_TYPES = [
   { value: "follow_up", label: "Follow-up", icon: Clock },
 ];
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 function statusClass(status: string | null) {
   switch (status) {
     case "New":
@@ -138,7 +159,13 @@ function priorityClass(priority: string | null) {
 function formatDate(value: string | null) {
   if (!value) return "—";
 
-  return new Date(value).toLocaleDateString("en-GB", {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -148,7 +175,13 @@ function formatDate(value: string | null) {
 function formatDateTime(value: string | null) {
   if (!value) return "—";
 
-  return new Date(value).toLocaleString("en-GB", {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -159,12 +192,61 @@ function formatDateTime(value: string | null) {
 
 function isOverdue(value: string | null) {
   if (!value) return false;
-  return new Date(value).getTime() < Date.now();
+
+  const timestamp = new Date(value).getTime();
+
+  if (Number.isNaN(timestamp)) {
+    return false;
+  }
+
+  return timestamp < Date.now();
+}
+
+async function loadLeadsData() {
+  const supabase = createClient();
+
+  const [customersResult, agentsResult, activitiesResult] =
+    await Promise.all([
+      supabase
+        .from("customers")
+        .select(
+          "id, account_number, name, email, phone, lead_status, lead_source, lead_priority, assigned_agent_id, last_contacted_at, next_follow_up_at, lead_value, created_at"
+        )
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("agents")
+        .select("id, name, email")
+        .order("name"),
+
+      supabase
+        .from("lead_activities")
+        .select(
+          "id, customer_id, agent_id, activity_type, subject, description, outcome, follow_up_at, created_by, created_at"
+        )
+        .order("created_at", { ascending: false }),
+    ]);
+
+  if (customersResult.error) {
+    throw customersResult.error;
+  }
+
+  if (agentsResult.error) {
+    throw agentsResult.error;
+  }
+
+  if (activitiesResult.error) {
+    throw activitiesResult.error;
+  }
+
+  return {
+    customers: (customersResult.data || []) as Customer[],
+    agents: (agentsResult.data || []) as Agent[],
+    activities: (activitiesResult.data || []) as LeadActivity[],
+  };
 }
 
 export default function AdminLeadsPage() {
-  const supabase = createClient();
-
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activities, setActivities] = useState<LeadActivity[]>([]);
@@ -186,7 +268,7 @@ export default function AdminLeadsPage() {
 
   const [showActivityModal, setShowActivityModal] = useState(false);
 
-  const [activityForm, setActivityForm] = useState({
+  const [activityForm, setActivityForm] = useState<ActivityForm>({
     activity_type: "note",
     subject: "",
     description: "",
@@ -194,49 +276,37 @@ export default function AdminLeadsPage() {
     follow_up_at: "",
   });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-
-    try {
-      const [customersResult, agentsResult, activitiesResult] =
-        await Promise.all([
-          supabase
-            .from("customers")
-            .select(
-              "id, account_number, name, email, phone, lead_status, lead_source, lead_priority, assigned_agent_id, last_contacted_at, next_follow_up_at, lead_value, created_at"
-            )
-            .order("created_at", { ascending: false }),
-
-          supabase
-            .from("agents")
-            .select("id, name, email")
-            .order("name"),
-
-          supabase
-            .from("lead_activities")
-            .select(
-              "id, customer_id, agent_id, activity_type, subject, description, outcome, follow_up_at, created_by, created_at"
-            )
-            .order("created_at", { ascending: false }),
-        ]);
-
-      if (customersResult.error) throw customersResult.error;
-      if (agentsResult.error) throw agentsResult.error;
-      if (activitiesResult.error) throw activitiesResult.error;
-
-      setCustomers((customersResult.data || []) as Customer[]);
-      setAgents((agentsResult.data || []) as Agent[]);
-      setActivities((activitiesResult.data || []) as LeadActivity[]);
-    } catch (error) {
-      console.error("Lead tracking load error:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase]);
-
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const data = await loadLeadsData();
+
+        if (cancelled) {
+          return;
+        }
+
+        setCustomers(data.customers);
+        setAgents(data.agents);
+        setActivities(data.activities);
+      } catch (error: unknown) {
+        if (!cancelled) {
+          console.error("Lead tracking load error:", error);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -286,6 +356,7 @@ export default function AdminLeadsPage() {
           const followUp = new Date(customer.next_follow_up_at);
 
           matchesFollowUp =
+            !Number.isNaN(followUp.getTime()) &&
             today.getFullYear() === followUp.getFullYear() &&
             today.getMonth() === followUp.getMonth() &&
             today.getDate() === followUp.getDate();
@@ -351,7 +422,10 @@ export default function AdminLeadsPage() {
 
   const getAgentName = (agentId: string | null) => {
     if (!agentId) return "Unassigned";
-    return agents.find((agent) => agent.id === agentId)?.name || "Unknown";
+
+    return (
+      agents.find((agent) => agent.id === agentId)?.name || "Unknown"
+    );
   };
 
   const customerActivities = selectedCustomer
@@ -367,12 +441,16 @@ export default function AdminLeadsPage() {
     setSaving(true);
 
     try {
+      const supabase = createClient();
+
       const { error } = await supabase
         .from("customers")
         .update(patch)
         .eq("id", customerId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       setCustomers((current) =>
         current.map((customer) =>
@@ -382,13 +460,15 @@ export default function AdminLeadsPage() {
         )
       );
 
-      if (selectedCustomer?.id === customerId) {
-        setSelectedCustomer((current) =>
-          current ? { ...current, ...patch } : current
-        );
-      }
-    } catch (error: any) {
-      alert(error?.message || "Failed to update lead.");
+      setSelectedCustomer((current) =>
+        current?.id === customerId
+          ? { ...current, ...patch }
+          : current
+      );
+    } catch (error: unknown) {
+      alert(
+        getErrorMessage(error, "Failed to update lead.")
+      );
     } finally {
       setSaving(false);
     }
@@ -407,7 +487,9 @@ export default function AdminLeadsPage() {
   };
 
   const addActivity = async () => {
-    if (!selectedCustomer) return;
+    if (!selectedCustomer) {
+      return;
+    }
 
     if (!activityForm.subject.trim()) {
       alert("Please enter an activity subject.");
@@ -417,9 +499,22 @@ export default function AdminLeadsPage() {
     setSaving(true);
 
     try {
+      const supabase = createClient();
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      const followUpAt = activityForm.follow_up_at
+        ? new Date(activityForm.follow_up_at)
+        : null;
+
+      if (
+        followUpAt &&
+        Number.isNaN(followUpAt.getTime())
+      ) {
+        throw new Error("Invalid follow-up date.");
+      }
 
       const { data, error } = await supabase
         .from("lead_activities")
@@ -428,10 +523,11 @@ export default function AdminLeadsPage() {
           agent_id: selectedCustomer.assigned_agent_id,
           activity_type: activityForm.activity_type,
           subject: activityForm.subject.trim(),
-          description: activityForm.description.trim() || null,
+          description:
+            activityForm.description.trim() || null,
           outcome: activityForm.outcome.trim() || null,
-          follow_up_at: activityForm.follow_up_at
-            ? new Date(activityForm.follow_up_at).toISOString()
+          follow_up_at: followUpAt
+            ? followUpAt.toISOString()
             : null,
           created_by: user?.id || null,
         })
@@ -440,29 +536,66 @@ export default function AdminLeadsPage() {
         )
         .single();
 
-      if (error) throw error;
-
-      if (data) {
-        setActivities((current) => [data as LeadActivity, ...current]);
+      if (error) {
+        throw error;
       }
 
-      if (activityForm.follow_up_at) {
-        await updateCustomer(selectedCustomer.id, {
-          next_follow_up_at: new Date(
-            activityForm.follow_up_at
-          ).toISOString(),
-        });
+      if (data) {
+        setActivities((current) => [
+          data as LeadActivity,
+          ...current,
+        ]);
+      }
+
+      if (followUpAt) {
+        const nextFollowUpAt = followUpAt.toISOString();
+
+        const { error: followUpError } = await supabase
+          .from("customers")
+          .update({
+            next_follow_up_at: nextFollowUpAt,
+          })
+          .eq("id", selectedCustomer.id);
+
+        if (followUpError) {
+          throw followUpError;
+        }
+
+        setCustomers((current) =>
+          current.map((customer) =>
+            customer.id === selectedCustomer.id
+              ? {
+                  ...customer,
+                  next_follow_up_at: nextFollowUpAt,
+                }
+              : customer
+          )
+        );
+
+        setSelectedCustomer((current) =>
+          current?.id === selectedCustomer.id
+            ? {
+                ...current,
+                next_follow_up_at: nextFollowUpAt,
+              }
+            : current
+        );
       }
 
       setShowActivityModal(false);
-    } catch (error: any) {
-      alert(error?.message || "Failed to add activity.");
+    } catch (error: unknown) {
+      alert(
+        getErrorMessage(error, "Failed to add activity.")
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const updateStatus = async (customer: Customer, status: string) => {
+  const updateStatus = async (
+    customer: Customer,
+    status: string
+  ) => {
     await updateCustomer(customer.id, {
       lead_status: status,
     });
@@ -569,6 +702,7 @@ export default function AdminLeadsPage() {
             return (
               <button
                 key={status}
+                type="button"
                 onClick={() =>
                   setStatusFilter(
                     statusFilter === status ? "all" : status
@@ -659,7 +793,11 @@ export default function AdminLeadsPage() {
             value={followUpFilter}
             onChange={(value) =>
               setFollowUpFilter(
-                value as "all" | "overdue" | "today" | "upcoming"
+                value as
+                  | "all"
+                  | "overdue"
+                  | "today"
+                  | "upcoming"
               )
             }
             options={[
@@ -725,6 +863,7 @@ export default function AdminLeadsPage() {
                     >
                       <td className="px-6 py-4">
                         <button
+                          type="button"
                           onClick={() =>
                             setSelectedCustomer(customer)
                           }
@@ -857,6 +996,7 @@ export default function AdminLeadsPage() {
 
                       <td className="px-6 py-4 text-right">
                         <button
+                          type="button"
                           onClick={() =>
                             setSelectedCustomer(customer)
                           }
@@ -896,8 +1036,10 @@ export default function AdminLeadsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => setSelectedCustomer(null)}
                 className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50"
+                aria-label="Close lead profile"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1075,6 +1217,7 @@ export default function AdminLeadsPage() {
 
                 <div className="flex gap-2 mt-4">
                   <button
+                    type="button"
                     onClick={openActivityModal}
                     className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#ae884e] text-white text-sm font-semibold hover:bg-[#9a7641] transition-colors"
                   >
@@ -1086,6 +1229,7 @@ export default function AdminLeadsPage() {
                     <a
                       href={`mailto:${selectedCustomer.email}`}
                       className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                      aria-label="Email lead"
                     >
                       <Mail className="w-4 h-4" />
                     </a>
@@ -1095,6 +1239,7 @@ export default function AdminLeadsPage() {
                     <a
                       href={`tel:${selectedCustomer.phone}`}
                       className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                      aria-label="Call lead"
                     >
                       <Phone className="w-4 h-4" />
                     </a>
@@ -1228,8 +1373,10 @@ export default function AdminLeadsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => setShowActivityModal(false)}
                 className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50"
+                aria-label="Close activity modal"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1244,10 +1391,10 @@ export default function AdminLeadsPage() {
                 <select
                   value={activityForm.activity_type}
                   onChange={(e) =>
-                    setActivityForm({
-                      ...activityForm,
+                    setActivityForm((current) => ({
+                      ...current,
                       activity_type: e.target.value,
-                    })
+                    }))
                   }
                   className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
                 >
@@ -1267,10 +1414,10 @@ export default function AdminLeadsPage() {
                 <input
                   value={activityForm.subject}
                   onChange={(e) =>
-                    setActivityForm({
-                      ...activityForm,
+                    setActivityForm((current) => ({
+                      ...current,
                       subject: e.target.value,
-                    })
+                    }))
                   }
                   placeholder="e.g. Called customer regarding 24 Rose Lane"
                   className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
@@ -1285,10 +1432,10 @@ export default function AdminLeadsPage() {
                 <textarea
                   value={activityForm.description}
                   onChange={(e) =>
-                    setActivityForm({
-                      ...activityForm,
+                    setActivityForm((current) => ({
+                      ...current,
                       description: e.target.value,
-                    })
+                    }))
                   }
                   rows={4}
                   placeholder="Record useful details about this interaction..."
@@ -1304,10 +1451,10 @@ export default function AdminLeadsPage() {
                 <input
                   value={activityForm.outcome}
                   onChange={(e) =>
-                    setActivityForm({
-                      ...activityForm,
+                    setActivityForm((current) => ({
+                      ...current,
                       outcome: e.target.value,
-                    })
+                    }))
                   }
                   placeholder="e.g. Customer interested and requested second viewing"
                   className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
@@ -1323,10 +1470,10 @@ export default function AdminLeadsPage() {
                   type="datetime-local"
                   value={activityForm.follow_up_at}
                   onChange={(e) =>
-                    setActivityForm({
-                      ...activityForm,
+                    setActivityForm((current) => ({
+                      ...current,
                       follow_up_at: e.target.value,
-                    })
+                    }))
                   }
                   className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
                 />
@@ -1335,6 +1482,7 @@ export default function AdminLeadsPage() {
 
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
               <button
+                type="button"
                 onClick={() => setShowActivityModal(false)}
                 disabled={saving}
                 className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -1343,6 +1491,7 @@ export default function AdminLeadsPage() {
               </button>
 
               <button
+                type="button"
                 onClick={addActivity}
                 disabled={saving}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1c3053] text-white text-sm font-semibold hover:bg-[#ae884e] disabled:opacity-50"

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -33,7 +32,6 @@ export default function PropertyDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  const supabase = createClient();
 
   const { toggleWishlist, isInWishlist } = useWishlist();
   const isSaved = isInWishlist(id);
@@ -42,41 +40,21 @@ export default function PropertyDetailsPage() {
   const [interiorImages, setInteriorImages] = useState<string[]>([]);
   const [exteriorImages, setExteriorImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [activeTab, setActiveTab] =
-    useState<string>("interior");
-
-  const [currentIndex, setCurrentIndex] =
-    useState<number>(0);
-
-  const [isLightboxOpen, setIsLightboxOpen] =
-    useState(false);
-
+  const [activeTab, setActiveTab] = useState<string>("interior");
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
-
-  const [selectedTime, setSelectedTime] =
-    useState<string>("");
-
+  const [selectedTime, setSelectedTime] = useState<string>("");
   const [userName, setUserName] = useState("");
   const [userPhone, setUserPhone] = useState("");
   const [userEmail, setUserEmail] = useState("");
-
-  const [bookingConfirmed, setBookingConfirmed] =
-    useState(false);
-
-  const [availableSlots, setAvailableSlots] =
-    useState<string[]>([]);
-
-  const [bookingError, setBookingError] =
-    useState("");
-
-  const [bookingLoading, setBookingLoading] =
-    useState(false);
-
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [bookingError, setBookingError] = useState("");
+  const [bookingLoading, setBookingLoading] = useState(false);
   const [msgName, setMsgName] = useState("");
   const [msgEmail, setMsgEmail] = useState("");
   const [msgPhone, setMsgPhone] = useState("");
@@ -86,13 +64,20 @@ export default function PropertyDetailsPage() {
   const [msgError, setMsgError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchProperty() {
-      const { data: propData, error: propError } =
-        await supabase
-          .from("properties")
-          .select("*, agents(*)")
-          .eq("id", id)
-          .single();
+      const supabase = createClient();
+
+      const { data: propData, error: propError } = await supabase
+        .from("properties")
+        .select("*, agents(*)")
+        .eq("id", id)
+        .single();
+
+      if (cancelled) {
+        return;
+      }
 
       if (propError || !propData) {
         router.push("/listings");
@@ -109,20 +94,20 @@ export default function PropertyDetailsPage() {
           ascending: true,
         });
 
+      if (cancelled) {
+        return;
+      }
+
       if (imgData) {
         setInteriorImages(
           imgData
-            .filter(
-              (img) => img.image_type === "interior"
-            )
+            .filter((img) => img.image_type === "interior")
             .map((img) => img.url)
         );
 
         setExteriorImages(
           imgData
-            .filter(
-              (img) => img.image_type === "exterior"
-            )
+            .filter((img) => img.image_type === "exterior")
             .map((img) => img.url)
         );
       }
@@ -133,20 +118,29 @@ export default function PropertyDetailsPage() {
     if (id) {
       fetchProperty();
     }
-  }, [id, router, supabase]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, router]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function calculateAvailability() {
       if (!property?.agents?.id || !selectedDate) {
         return;
       }
 
+      const supabase = createClient();
+
       setBookingError("");
 
-      const dateObj = new Date(selectedDate);
+      const dateObj = new Date(`${selectedDate}T00:00:00`);
 
       if (dateObj.getDay() === 0) {
         setAvailableSlots([]);
+        setSelectedTime("");
         return;
       }
 
@@ -159,8 +153,12 @@ export default function PropertyDetailsPage() {
           `agent_id.is.null,agent_id.eq.${property.agents.id}`
         );
 
+      if (cancelled) {
+        return;
+      }
+
       let isFullDayBlocked = false;
-      let specificallyBlockedSlots: string[] = [];
+      const specificallyBlockedSlots: string[] = [];
 
       const allSlots = [
         "08:00",
@@ -180,17 +178,11 @@ export default function PropertyDetailsPage() {
           if (!block.start_time || !block.end_time) {
             isFullDayBlocked = true;
           } else {
-            const blockStart =
-              block.start_time.substring(0, 5);
-
-            const blockEnd =
-              block.end_time.substring(0, 5);
+            const blockStart = block.start_time.substring(0, 5);
+            const blockEnd = block.end_time.substring(0, 5);
 
             allSlots.forEach((slot) => {
-              if (
-                slot >= blockStart &&
-                slot < blockEnd
-              ) {
+              if (slot >= blockStart && slot < blockEnd) {
                 specificallyBlockedSlots.push(slot);
               }
             });
@@ -204,13 +196,16 @@ export default function PropertyDetailsPage() {
         return;
       }
 
-      const { data: existingBookings } =
-        await supabase
-          .from("bookings")
-          .select("start_time")
-          .eq("agent_id", property.agents.id)
-          .eq("viewing_date", selectedDate)
-          .in("status", ["pending", "confirmed"]);
+      const { data: existingBookings } = await supabase
+        .from("bookings")
+        .select("start_time")
+        .eq("agent_id", property.agents.id)
+        .eq("viewing_date", selectedDate)
+        .in("status", ["pending", "confirmed"]);
+
+      if (cancelled) {
+        return;
+      }
 
       const bookedTimes =
         existingBookings?.map((b) =>
@@ -236,7 +231,11 @@ export default function PropertyDetailsPage() {
     }
 
     calculateAvailability();
-  }, [selectedDate, property, supabase, selectedTime]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate, property, selectedTime]);
 
   const handleBookingSubmit = async (
     e: React.FormEvent
@@ -267,32 +266,29 @@ export default function PropertyDetailsPage() {
     setBookingError("");
 
     try {
-      const hour = parseInt(
-        selectedTime.split(":")[0]
-      );
+      const supabase = createClient();
 
+      const hour = parseInt(selectedTime.split(":")[0], 10);
       const endTime = `${(hour + 1)
         .toString()
         .padStart(2, "0")}:00:00`;
 
       const bookingId = crypto.randomUUID();
 
-      const { error } = await supabase
-        .from("bookings")
-        .insert([
-          {
-            id: bookingId,
-            property_id: property.id,
-            agent_id: property.agents.id,
-            viewing_date: selectedDate,
-            start_time: `${selectedTime}:00`,
-            end_time: endTime,
-            customer_name: userName.trim(),
-            customer_email: userEmail.trim(),
-            customer_phone: userPhone.trim(),
-            status: "pending",
-          },
-        ]);
+      const { error } = await supabase.from("bookings").insert([
+        {
+          id: bookingId,
+          property_id: property.id,
+          agent_id: property.agents.id,
+          viewing_date: selectedDate,
+          start_time: `${selectedTime}:00`,
+          end_time: endTime,
+          customer_name: userName.trim(),
+          customer_email: userEmail.trim(),
+          customer_phone: userPhone.trim(),
+          status: "pending",
+        },
+      ]);
 
       if (error) {
         if (error.code === "23505") {
@@ -349,18 +345,17 @@ export default function PropertyDetailsPage() {
     setMsgSuccess(false);
 
     try {
-      const { error } = await supabase
-        .from("messages")
-        .insert([
-          {
-            property_id: property.id,
-            sender_name: msgName.trim(),
-            sender_email: msgEmail.trim(),
-            sender_phone:
-              msgPhone.trim() || null,
-            message: msgText.trim(),
-          },
-        ]);
+      const supabase = createClient();
+
+      const { error } = await supabase.from("messages").insert([
+        {
+          property_id: property.id,
+          sender_name: msgName.trim(),
+          sender_email: msgEmail.trim(),
+          sender_phone: msgPhone.trim() || null,
+          message: msgText.trim(),
+        },
+      ]);
 
       if (error) {
         throw error;
@@ -405,8 +400,7 @@ export default function PropertyDetailsPage() {
       setMsgText("");
     } catch (error: any) {
       setMsgError(
-        "Failed to send message: " +
-          error.message
+        "Failed to send message: " + error.message
       );
     } finally {
       setMsgLoading(false);
@@ -422,16 +416,11 @@ export default function PropertyDetailsPage() {
         })
         .catch(() => {});
     } else {
-      navigator.clipboard.writeText(
-        window.location.href
-      );
+      navigator.clipboard.writeText(window.location.href);
 
       setCopied(true);
 
-      setTimeout(
-        () => setCopied(false),
-        2000
-      );
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -528,16 +517,14 @@ export default function PropertyDetailsPage() {
     return null;
   }
 
-  const has3DModel =
-    Boolean(
-      property.model_3d_url &&
+  const has3DModel = Boolean(
+    property.model_3d_url &&
       property.has_3d_model
-    );
+  );
 
-  const hasVirtualTour =
-    Boolean(
-      property.virtual_tour_url
-    );
+  const hasVirtualTour = Boolean(
+    property.virtual_tour_url
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 pt-28 pb-20">
@@ -575,9 +562,7 @@ export default function PropertyDetailsPage() {
             >
               <Share2 className="w-4 h-4 mr-2 text-[#ae884e]" />
 
-              {copied
-                ? "Link Copied!"
-                : "Share"}
+              {copied ? "Link Copied!" : "Share"}
             </button>
           </div>
         </div>
@@ -694,7 +679,6 @@ export default function PropertyDetailsPage() {
                     Use your mouse or touch screen to rotate,
                     zoom and explore the property.
                   </div>
-                {/* @ts-ignore */}
                 </model-viewer>
               </div>
             ) : activeTab === "virtualtour" &&
@@ -1295,6 +1279,7 @@ export default function PropertyDetailsPage() {
                 <p className="text-4xl font-bold text-[#1c3053]">
                   £
                   {property.monthly_rent?.toLocaleString()}
+
                   <span className="text-sm font-normal text-gray-500">
                     {" "}
                     pcm
