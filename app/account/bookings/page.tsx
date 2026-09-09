@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -16,11 +16,16 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+interface PropertyImage {
+  url?: string | null;
+  image_type?: string | null;
+}
+
 interface BookingProperty {
   title?: string | null;
   short_location?: string | null;
   property_ref?: string | null;
-  images?: string[] | null;
+  property_images?: PropertyImage[] | null;
 }
 
 interface CustomerBooking {
@@ -37,13 +42,12 @@ export default function CustomerBookingsPage() {
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "upcoming" | "past">("all");
+  const supabase = useMemo(() => createClient(), []);
 
   const router = useRouter();
 
   useEffect(() => {
     async function loadBookings() {
-      const supabase = createClient();
-
       try {
         const {
           data: { user },
@@ -55,10 +59,11 @@ export default function CustomerBookingsPage() {
           return;
         }
 
+        // Uyumlu property_images ilişkisi kullanıldı (Master v2 - Madde 5)
         const { data: bookingsData, error: bookingsError } = await supabase
           .from("bookings")
           .select(
-            "*, property:properties(title, short_location, property_ref, images)"
+            "*, property:properties(title, short_location, property_ref, property_images(url, image_type))"
           )
           .eq("customer_email", user.email)
           .order("viewing_date", { ascending: true });
@@ -75,8 +80,8 @@ export default function CustomerBookingsPage() {
       }
     }
 
-    loadBookings();
-  }, [router]);
+    void loadBookings();
+  }, [router, supabase]);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -163,11 +168,11 @@ export default function CustomerBookingsPage() {
                   ? booking.property[0]
                   : booking.property;
 
-                const images = property?.images;
-
+                const propertyImages = property?.property_images;
                 const coverImage =
-                  Array.isArray(images) && images.length > 0
-                    ? images[0]
+                  Array.isArray(propertyImages) && propertyImages.length > 0
+                    ? propertyImages.find((img) => img.image_type === "main")?.url ||
+                      propertyImages[0]?.url
                     : null;
 
                 return (
@@ -183,6 +188,7 @@ export default function CustomerBookingsPage() {
                             alt={property?.title || "Property"}
                             fill
                             sizes="80px"
+                            unoptimized
                             className="rounded-xl object-cover border border-gray-100"
                           />
                         </div>

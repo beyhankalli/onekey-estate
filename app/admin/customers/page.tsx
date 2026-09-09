@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
@@ -12,6 +12,8 @@ import {
   Filter,
   Hash,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface Customer {
@@ -25,38 +27,41 @@ interface Customer {
   created_at: string;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  const fetchCustomers = useCallback(async () => {
+    const supabase = createClient();
+
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        setCustomers(data as Customer[]);
+      }
+    } catch (err: unknown) {
+      console.error("Error fetching customers:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchCustomers() {
-      const supabase = createClient();
-
-      try {
-        setLoading(true);
-
-        const { data, error } = await supabase
-          .from("customers")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-
-        if (data) {
-          setCustomers(data as Customer[]);
-        }
-      } catch (err: unknown) {
-        console.error("Error fetching customers:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchCustomers();
-  }, []);
+    void fetchCustomers();
+  }, [fetchCustomers]);
 
   const handleLeadStatusChange = async (
     customerId: string,
@@ -103,6 +108,19 @@ export default function AdminCustomersPage() {
       return matchesSearch && matchesStatus;
     });
   }, [customers, searchQuery, statusFilter]);
+
+  // Sayfalama (Pagination) hesaplamaları
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
+  
+  const paginatedCustomers = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredCustomers.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredCustomers, currentPage]);
+
+  // Filtre değiştiğinde ilk sayfaya dön
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
 
   if (loading) {
     return (
@@ -182,111 +200,148 @@ export default function AdminCustomersPage() {
             <p>No customers found matching your filters.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/70 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  <th className="py-4 px-6">Customer</th>
-                  <th className="py-4 px-6">Contact</th>
-                  <th className="py-4 px-6">Lead Status</th>
-                  <th className="py-4 px-6">Joined</th>
-                  <th className="py-4 px-6 text-right">Actions</th>
-                </tr>
-              </thead>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/70 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th className="py-4 px-6">Customer</th>
+                    <th className="py-4 px-6">Contact</th>
+                    <th className="py-4 px-6">Lead Status</th>
+                    <th className="py-4 px-6">Joined</th>
+                    <th className="py-4 px-6 text-right">Actions</th>
+                  </tr>
+                </thead>
 
-              <tbody className="divide-y divide-gray-100 text-sm">
-                {filteredCustomers.map((customer) => {
-                  const isInactive = customer.is_active === false;
+                <tbody className="divide-y divide-gray-100 text-sm">
+                  {paginatedCustomers.map((customer) => {
+                    const isInactive = customer.is_active === false;
 
-                  return (
-                    <tr
-                      key={customer.id}
-                      className={`hover:bg-gray-50/50 transition-colors ${
-                        isInactive
-                          ? "bg-red-50/30 opacity-75"
-                          : ""
-                      }`}
-                    >
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-gray-900">
-                            {customer.name || "Unnamed customer"}
-                          </span>
-
-                          {customer.account_number && (
-                            <span className="flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-md">
-                              <Hash className="w-3.5 h-3.5" />{" "}
-                              {customer.account_number}
+                    return (
+                      <tr
+                        key={customer.id}
+                        className={`hover:bg-gray-50/50 transition-colors ${
+                          isInactive
+                            ? "bg-red-50/30 opacity-75"
+                            : ""
+                        }`}
+                      >
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-900">
+                              {customer.name || "Unnamed customer"}
                             </span>
-                          )}
 
-                          {isInactive && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 bg-red-100 text-red-700 rounded-full">
-                              INACTIVE
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                            {customer.account_number && (
+                              <span className="flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-md">
+                                <Hash className="w-3.5 h-3.5" />{" "}
+                                {customer.account_number}
+                              </span>
+                            )}
 
-                      <td className="py-4 px-6">
-                        <div className="text-gray-900 flex items-center gap-1.5">
-                          <Mail className="w-3.5 h-3.5 text-gray-400" />
-                          {customer.email || "N/A"}
-                        </div>
+                            {isInactive && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-red-100 text-red-700 rounded-full">
+                                INACTIVE
+                              </span>
+                            )}
+                          </div>
+                        </td>
 
-                        <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
-                          <Phone className="w-3.5 h-3.5 text-gray-400" />
-                          {customer.phone || "N/A"}
-                        </div>
-                      </td>
+                        <td className="py-4 px-6">
+                          <div className="text-gray-900 flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-gray-400" />
+                            {customer.email || "N/A"}
+                          </div>
 
-                      <td className="py-4 px-6">
-                        <select
-                          value={customer.lead_status || "New"}
-                          onChange={(e) =>
-                            handleLeadStatusChange(
-                              customer.id,
-                              e.target.value
-                            )
-                          }
-                          className="text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-[#ae884e]/20 focus:border-[#ae884e]"
-                        >
-                          <option value="New">New</option>
-                          <option value="Contacted">Contacted</option>
-                          <option value="Viewing Booked">
-                            Viewing Booked
-                          </option>
-                          <option value="Viewing Completed">
-                            Viewing Completed
-                          </option>
-                          <option value="Application">Application</option>
-                          <option value="Offer">Offer</option>
-                          <option value="Completed">Completed</option>
-                          <option value="Lost">Lost</option>
-                        </select>
-                      </td>
+                          <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
+                            <Phone className="w-3.5 h-3.5 text-gray-400" />
+                            {customer.phone || "N/A"}
+                          </div>
+                        </td>
 
-                      <td className="py-4 px-6 text-gray-500 text-xs">
-                        {customer.created_at
-                          ? new Date(customer.created_at).toLocaleDateString("en-GB")
-                          : "N/A"}
-                      </td>
+                        <td className="py-4 px-6">
+                          <select
+                            value={customer.lead_status || "New"}
+                            onChange={(e) =>
+                              void handleLeadStatusChange(
+                                customer.id,
+                                e.target.value
+                              )
+                            }
+                            className="text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-[#ae884e]/20 focus:border-[#ae884e]"
+                          >
+                            <option value="New">New</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Viewing Booked">
+                              Viewing Booked
+                            </option>
+                            <option value="Viewing Completed">
+                              Viewing Completed
+                            </option>
+                            <option value="Application">Application</option>
+                            <option value="Offer">Offer</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Lost">Lost</option>
+                          </select>
+                        </td>
 
-                      <td className="py-4 px-6 text-right">
-                        <Link
-                          href={`/admin/customers/${customer.id}`}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1c3053] hover:bg-[#ae884e] text-white rounded-lg text-xs font-medium transition-colors shadow-sm"
-                        >
-                          View Profile{" "}
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <td className="py-4 px-6 text-gray-500 text-xs">
+                          {customer.created_at
+                            ? new Date(customer.created_at).toLocaleDateString("en-GB")
+                            : "N/A"}
+                        </td>
+
+                        <td className="py-4 px-6 text-right">
+                          <Link
+                            href={`/admin/customers/${customer.id}`}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1c3053] hover:bg-[#ae884e] text-white rounded-lg text-xs font-medium transition-colors shadow-sm"
+                          >
+                            View Profile{" "}
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Sayfalama Kontrolleri (Pagination Controls) */}
+            <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
+              <p className="text-xs text-gray-500">
+                Showing <span className="font-semibold text-gray-800">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to{" "}
+                <span className="font-semibold text-gray-800">
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredCustomers.length)}
+                </span> of{" "}
+                <span className="font-semibold text-gray-800">{filteredCustomers.length}</span> results
+              </p>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Previous
+                </button>
+
+                <span className="text-xs font-medium text-gray-600 px-2">
+                  Page {currentPage} of {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                >
+                  Next <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

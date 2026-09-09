@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -31,13 +31,12 @@ interface CustomerApplication {
 export default function CustomerApplicationsPage() {
   const [applications, setApplications] = useState<CustomerApplication[]>([]);
   const [loading, setLoading] = useState(true);
+  const supabase = useMemo(() => createClient(), []);
 
   const router = useRouter();
 
   useEffect(() => {
     async function loadApplications() {
-      const supabase = createClient();
-
       try {
         const {
           data: { user },
@@ -49,12 +48,25 @@ export default function CustomerApplicationsPage() {
           return;
         }
 
+        // Auth ID'yi gerçek müşteri tablosu ID'sine dönüştürüyoruz (customers.auth_user_id -> customers.id)
+        const { data: customerData, error: customerError } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("auth_user_id", user.id)
+          .single();
+
+        if (customerError || !customerData) {
+          setApplications([]);
+          setLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase
           .from("applications")
           .select(
             "*, property:properties(title, short_location, property_ref)"
           )
-          .eq("customer_id", user.id)
+          .eq("customer_id", customerData.id)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -69,8 +81,8 @@ export default function CustomerApplicationsPage() {
       }
     }
 
-    loadApplications();
-  }, [router]);
+    void loadApplications();
+  }, [router, supabase]);
 
   if (loading) {
     return (

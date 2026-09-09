@@ -161,14 +161,57 @@ export default function AdminLayout({
 
     fetchNotifications();
 
-    const interval = window.setInterval(() => {
-      fetchNotifications();
-    }, 15000);
+    // Master v2 - Madde 28: Polling (setInterval) iptal edildi, Supabase Realtime entegre edildi.
+    let userId = "";
+    
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      userId = user.id;
+
+      const channel = supabase
+        .channel('admin_notifications_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'admin_notifications',
+            filter: `recipient_user_id=eq.${userId}`
+          },
+          (payload) => {
+            const newNotification = payload.new as Notification;
+            setNotifications((current) => [newNotification, ...current]);
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'admin_notifications',
+            filter: `recipient_user_id=eq.${userId}`
+          },
+          (payload) => {
+            const updatedNotification = payload.new as Notification;
+            setNotifications((current) =>
+              current.map((n) => (n.id === updatedNotification.id ? updatedNotification : n))
+            );
+          }
+        )
+        .subscribe();
+        
+      return channel;
+    };
+
+    const channelPromise = setupRealtime();
 
     return () => {
-      window.clearInterval(interval);
+      channelPromise.then((channel) => {
+        if (channel) supabase.removeChannel(channel);
+      });
     };
-  }, [pathname]);
+  }, [pathname, supabase]);
 
   useEffect(() => {
     if (pathname === "/admin/login") return;
@@ -566,9 +609,10 @@ export default function AdminLayout({
           </div>
         </header>
 
-        <main className="flex-1 min-w-0 overflow-y-auto p-8 bg-gray-50">
+        {/* Master v2 - Madde 30: Nested <main> hatası çözüldü (Burası div'e çevrildi) */}
+        <div className="flex-1 min-w-0 overflow-y-auto p-8 bg-gray-50">
           {children}
-        </main>
+        </div>
       </div>
     </div>
   );

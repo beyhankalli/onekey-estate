@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-// Simple in-memory rate limiter to protect Gemini API quota.
-// Note: In serverless (Vercel), this memory is isolated per-instance and clears 
-// on cold starts, but it's enough to stop a basic single-instance spam loop.
+// ==========================================
+// MASTER V2 - MADDE 21: RATE LIMITER
+// ==========================================
+// Not: Upstash (Redis) entegrasyonu olmadığı için Vercel ortamında en güvenilir 
+// memory tabanlı Token Bucket algoritması kullanılmıştır.
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_MAX_REQUESTS = 10;
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 7; // Dakikada maksimum 7 mesaj
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 dakika
 
-function applyRateLimit(ip: string): boolean {
+function applyRateLimit(identifier: string): boolean {
   const now = Date.now();
-  const record = rateLimitMap.get(ip);
+  const record = rateLimitMap.get(identifier);
+
+  // Süresi dolmuş kayıtları temizle (Memory leak önlemi)
+  if (rateLimitMap.size > 1000) {
+    rateLimitMap.clear();
+  }
 
   if (!record || now > record.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    rateLimitMap.set(identifier, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
 
@@ -30,7 +37,6 @@ type Property = {
   title: string | null;
   property_ref: string | null;
   short_location: string | null;
-  // full_address and postcode purposely omitted from the AI context to protect privacy
   monthly_rent: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
@@ -70,7 +76,6 @@ function formatProperty(property: Property) {
     title: property.title,
     reference: property.property_ref,
     location: property.short_location,
-    // explicitly NOT sending full_address or postcode to the LLM
     rent_pcm: property.monthly_rent,
     bedrooms: property.bedrooms,
     bathrooms: property.bathrooms,
@@ -80,46 +85,86 @@ function formatProperty(property: Property) {
     parking: property.parking,
     student_friendly: property.student_friendly,
     families_allowed: property.families_allowed,
-    dss_lha_covers_rent: property.dss_lha_covers_rent,
-    council_tax_band: property.council_tax_band,
-    heating_type: property.heating_type,
-    tenure: property.tenure,
-    minimum_tenancy: property.minimum_tenancy,
     has_3d_model: Boolean(property.model_3d_url),
     has_virtual_tour: Boolean(property.virtual_tour_url),
-    description: cleanText(property.description, 700),
-    image:
-      property.property_images?.find(
-        (image) => image.image_type === "main"
-      )?.url ??
-      property.property_images?.[0]?.url ??
-      null,
+    description: cleanText(property.description, 400), // Token optimizasyonu için açıklama kısaltıldı
   };
+}
+
+// ==========================================
+// MASTER V2 - MADDE 25: AI RETRIEVAL & FILTERING
+// ==========================================
+// 100 ilanı birden LLM'e göndermek yerine, kullanıcının mesajına göre
+// en alakalı 12 ilanı seçen akıllı puanlama (heuristic scoring) sistemi.
+function getRelevantProperties(properties: Property[], userMessage: string, currentPropertyId: string | null): Property[] {
+  const msg = userMessage.toLowerCase();
+  
+  // Basit niyet çıkarımı
+  const bedMatch = msg.match(/(\d+)\s*(bed|bedroom)/);
+  const targetBeds = bedMatch ? parseInt(bedMatch[1], 10) : null;
+  
+  const budgetMatch = msg.match(/(under|max|budget)[^\d]*£?(\d+)/);
+  const targetBudget = budgetMatch ? parseInt(budgetMatch[2], 10) : null;
+  
+  const wantsGarden = msg.includes("garden") || msg.includes("yard");
+  const wantsParking = msg.includes("parking") || msg.includes("garage") || msg.includes("driveway");
+  const wantsPets = msg.includes("pet") || msg.includes("dog") || msg.includes("cat");
+
+  const searchTerms = msg.split(/\s+/).filter(w => w.length > 3);
+
+  const scored = properties.map(p => {
+    let score = 0;
+    
+    // Açık olan sayfanın ilanı her zaman en yüksek puanı alır
+    if (currentPropertyId === p.id) score += 100;
+    
+    // Niyet Eşleşmeleri
+    if (targetBeds && p.bedrooms && p.bedrooms >= targetBeds) score += 20;
+    if (targetBudget && p.monthly_rent && p.monthly_rent <= targetBudget) score += 20;
+    if (wantsGarden && p.garden) score += 10;
+    if (wantsParking && p.parking) score += 10;
+    if (wantsPets && p.pets_allowed) score += 15;
+
+    // Kelime Eşleşmeleri
+    searchTerms.forEach(term => {
+      if (p.short_location?.toLowerCase().includes(term)) score += 15;
+      if (p.title?.toLowerCase().includes(term)) score += 5;
+    });
+
+    return { property: p, score };
+  });
+
+  // Puana göre sırala ve en yüksek puanlı 12 tanesini al
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12)
+    .map(s => s.property);
 }
 
 function extractPropertyIds(text: string): string[] {
   const match = text.match(/PROPERTY_IDS:\s*([^\n\r]+)/i);
-
   if (!match) return [];
-
-  return match[1]
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean)
-    .slice(0, 6);
+  return match[1].split(",").map((id) => id.trim()).filter(Boolean).slice(0, 6);
 }
 
 function removePropertyMarker(text: string): string {
-  return text
-    .replace(/PROPERTY_IDS:\s*[^\n\r]*/gi, "")
-    .trim();
+  return text.replace(/PROPERTY_IDS:\s*[^\n\r]*/gi, "").trim();
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Rate Limiting Check
-    const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
-    if (!applyRateLimit(ip)) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Güvenilir IP veya User ID tanımlaması
+    const clientIp = 
+      request.headers.get("x-real-ip") ?? 
+      request.headers.get("x-forwarded-for")?.split(",")[0] ?? 
+      "127.0.0.1";
+      
+    const rateLimitIdentifier = user?.id || clientIp;
+
+    if (!applyRateLimit(rateLimitIdentifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please wait a minute before sending another message." },
         { status: 429 }
@@ -127,13 +172,9 @@ export async function POST(request: NextRequest) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-
     if (!apiKey) {
       return NextResponse.json(
-        {
-          error:
-            "Gemini API is not configured. Add GEMINI_API_KEY to the environment.",
-        },
+        { error: "Gemini API is not configured. Add GEMINI_API_KEY to the environment." },
         { status: 500 }
       );
     }
@@ -160,118 +201,67 @@ export async function POST(request: NextRequest) {
                 (item as ChatMessage).role === "assistant") &&
               typeof (item as ChatMessage).content === "string"
           )
-          .slice(-8)
+          .slice(-6) // Token tasarrufu için geçmiş mesaj sayısını 6'ya düşürdük
           .map((item: ChatMessage) => ({
             role: item.role,
             content: cleanText(item.content, 1200),
           }))
       : [];
 
-    const currentPropertyId =
-      typeof body?.currentPropertyId === "string"
-        ? body.currentPropertyId
-        : null;
+    const currentPropertyId = typeof body?.currentPropertyId === "string" ? body.currentPropertyId : null;
 
-    const supabase = await createClient();
-
-    // 2. Fetch properties with status = Published filter (Master v2 - Madde 6)
+    // Sadece yayında olanları çekiyoruz
     const { data: properties, error: propertiesError } = await supabase
       .from("properties")
-      .select(
-        `
-        id,
-        title,
-        property_ref,
-        short_location,
-        monthly_rent,
-        bedrooms,
-        bathrooms,
-        availability_status,
-        pets_allowed,
-        garden,
-        parking,
-        student_friendly,
-        families_allowed,
-        dss_lha_covers_rent,
-        council_tax_band,
-        heating_type,
-        tenure,
-        minimum_tenancy,
-        model_3d_url,
-        virtual_tour_url,
-        description,
-        property_images(url, image_type)
-      `
-      )
+      .select(`
+        id, title, property_ref, short_location, monthly_rent, bedrooms, bathrooms,
+        availability_status, pets_allowed, garden, parking, student_friendly,
+        families_allowed, dss_lha_covers_rent, council_tax_band, heating_type,
+        tenure, minimum_tenancy, model_3d_url, virtual_tour_url, description
+      `)
       .eq("status", "Published")
       .order("created_at", { ascending: false })
-      .limit(100);
+      .limit(100); // 100 tane çekiyoruz ama LLM'e hepsini yollamayacağız
 
     if (propertiesError) {
       console.error("Property catalogue error:", propertiesError);
-      return NextResponse.json(
-        { error: "Unable to load property catalogue." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Unable to load property catalogue." }, { status: 500 });
     }
 
     const allProperties = (properties ?? []) as Property[];
-
     const availableProperties = allProperties.filter(
-      (property) =>
-        property.availability_status?.toLowerCase() === "available"
+      (property) => property.availability_status?.toLowerCase() === "available"
     );
 
+    // Madde 25: 100 ilanı 12 ilana düşürüyoruz!
+    const filteredProperties = getRelevantProperties(availableProperties, message, currentPropertyId);
+    const catalogue = filteredProperties.map(formatProperty);
+
     const currentProperty = currentPropertyId
-      ? allProperties.find(
-          (property) => String(property.id) === currentPropertyId
-        )
+      ? allProperties.find((property) => String(property.id) === currentPropertyId)
       : null;
 
-    const catalogue = availableProperties.map(formatProperty);
-
     const currentContext = currentProperty
-      ? `
-CURRENT PROPERTY PAGE
-
-The user is currently viewing this property:
-
-${JSON.stringify(formatProperty(currentProperty), null, 2)}
-
-When answering questions about "this property", "this house", "this one", etc., use this property as the primary context.
-`
+      ? `\nCURRENT PROPERTY THE USER IS LOOKING AT:\n${JSON.stringify(formatProperty(currentProperty), null, 2)}\nWhen answering questions about "this property", use this specific property as the primary context.`
       : "";
 
     const systemInstruction = `
 You are OneKey AI, the property assistant for OneKey Estate Agency in Norwich, UK.
 
-Your job is to help users find and understand properties listed by OneKey Estate Agency.
-
 CRITICAL RULES:
-
 1. ONLY use property information contained in the PROPERTY CATALOGUE below.
-2. Never invent a property, price, location, feature, availability status, or other fact.
+2. Never invent a property, price, location, or feature.
 3. If the catalogue does not contain the requested information, clearly say that you do not have that information.
-4. Never claim that a property is available unless its catalogue availability says "Available".
-5. Prices are monthly rent in GBP unless explicitly stated otherwise.
-6. Use UK English.
-7. Be concise, natural and helpful.
-8. If the user asks for recommendations, identify the best matching properties from the catalogue.
-9. If the user gives requirements such as budget, bedrooms, pets, students, parking, garden or location, use those requirements to filter the catalogue.
-10. Do not expose internal database details.
-11. Do not mention PROPERTY_IDS unless specifically asked.
-12. You are an assistant for OneKey Estate Agency, not a general-purpose chatbot.
-13. You may answer general questions about the property-search process, but property-specific facts must come from the catalogue.
-14. If no property matches the user's requirements, say so and suggest relaxing one requirement.
-15. At the end of every response involving property recommendations, add:
+4. Use UK English. Be concise, natural and helpful.
+5. If the user gives requirements (budget, beds, pets), use them to recommend the best matching properties from the catalogue.
+6. Do not mention PROPERTY_IDS unless specifically asked.
+7. At the end of every response involving property recommendations, MUST add exactly:
 PROPERTY_IDS: id1,id2,id3
 
 Only include IDs that actually exist in the catalogue and that you genuinely recommended.
 
-PROPERTY CATALOGUE:
-
+PROPERTY CATALOGUE (TOP RELEVANT MATCHES):
 ${JSON.stringify(catalogue, null, 2)}
-
 ${currentContext}
 `;
 
@@ -286,42 +276,55 @@ ${currentContext}
       },
     ];
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: systemInstruction }],
+    // ==========================================
+    // MASTER V2 - MADDE 24: AI TIMEOUT & ABORT CONTROLLER
+    // ==========================================
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 saniye maksimum süre
+
+    let response;
+    try {
+      response = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
           },
-          contents,
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 700,
-          },
-        }),
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents,
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 600,
+            },
+          }),
+          signal: controller.signal, // Timeout Sinyali
+        }
+      );
+    } catch (fetchError: any) {
+      if (fetchError.name === "AbortError") {
+        return NextResponse.json(
+          { error: "The AI assistant took too long to respond. Please try again." },
+          { status: 504 } // Gateway Timeout
+        );
       }
-    );
+      throw fetchError;
+    } finally {
+      clearTimeout(timeoutId); // İşlem bittiyse zamanlayıcıyı temizle
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Gemini API error:", errorText);
-
       return NextResponse.json(
-        {
-          error:
-            "The AI assistant is temporarily unavailable. Please try again.",
-        },
+        { error: "The AI assistant is temporarily unavailable. Please try again." },
         { status: 502 }
       );
     }
 
     const data = await response.json();
-
     const generatedText =
       data?.candidates?.[0]?.content?.parts
         ?.map((part: { text?: string }) => part.text ?? "")
@@ -330,10 +333,7 @@ ${currentContext}
 
     if (!generatedText) {
       return NextResponse.json(
-        {
-          error:
-            "The AI assistant could not generate a response. Please try again.",
-        },
+        { error: "The AI assistant could not generate a response. Please try again." },
         { status: 502 }
       );
     }
@@ -341,10 +341,10 @@ ${currentContext}
     const recommendedIds = extractPropertyIds(generatedText);
     const answer = removePropertyMarker(generatedText);
 
-    // Filter server-side to ensure the AI didn't hallucinate an ID of an unavailable property
+    // AI'ın halüsinasyon görüp görmediğini backend tarafında tekrar doğruluyoruz
     const recommendedProperties = recommendedIds
       .map((id) =>
-        availableProperties.find((property) => String(property.id) === String(id))
+        filteredProperties.find((property) => String(property.id) === String(id))
       )
       .filter(Boolean)
       .map((property) => formatProperty(property as Property));
@@ -355,12 +355,8 @@ ${currentContext}
     });
   } catch (error) {
     console.error("Property assistant error:", error);
-
     return NextResponse.json(
-      {
-        error:
-          "Something went wrong with the property assistant. Please try again.",
-      },
+      { error: "Something went wrong with the property assistant. Please try again." },
       { status: 500 }
     );
   }

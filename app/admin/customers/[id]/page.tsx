@@ -53,6 +53,7 @@ interface Customer {
   email_verified?: boolean;
   phone_verified?: boolean;
   account_number?: string;
+  auth_user_id?: string | null;
 }
 
 interface BookingProperty {
@@ -148,7 +149,7 @@ const loadCustomerProfileData = async (
   const { data: customerData, error: customerError } = await supabase
     .from("customers")
     .select(
-      "id, name, email, phone, lead_status, preferences_json, notes, created_at, is_active, email_verified, phone_verified, account_number"
+      "id, name, email, phone, lead_status, preferences_json, notes, created_at, is_active, email_verified, phone_verified, account_number, auth_user_id"
     )
     .eq("id", customerId)
     .single();
@@ -516,26 +517,33 @@ export default function CustomerProfilePage() {
     }
   };
 
+  // Master v2 - Madde 7: Auth ve Customer tablolarının API üzerinden güvenle silinmesi
   const handlePermanentDelete = async () => {
-    if (countdown > 0 || !isChecked) {
+    if (countdown > 0 || !isChecked || !customer) {
       return;
     }
 
     setDeleting(true);
 
-    const supabase = createClient();
-
     try {
-      const { error } = await supabase
-        .from("customers")
-        .delete()
-        .eq("id", customerId);
+      const response = await fetch("/api/admin/customers/delete", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerId: customer.id,
+          authUserId: customer.auth_user_id, // Auth kaydını silebilmek için payload'da gönderiyoruz
+        }),
+      });
 
-      if (error) {
-        throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to permanently delete customer.");
       }
 
-      alert("Customer account permanently deleted.");
+      alert("Customer account and associated data have been permanently deleted.");
       router.push("/admin/customers");
       router.refresh();
     } catch (error: unknown) {
@@ -2509,7 +2517,7 @@ export default function CustomerProfilePage() {
                     <p className="text-xs font-semibold text-gray-500 mb-1">
                       {new Date(
                         msg.created_at
-                      ).toLocaleString("en-GB")}
+                      ).toLocaleDateString("en-GB")}
                     </p>
 
                     <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">

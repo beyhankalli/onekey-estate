@@ -89,7 +89,7 @@ export default function ContactPage() {
     setIsSending(true);
 
     try {
-      // 1. Önce veritabanına kayıt atıyoruz
+      // 1. contact_messages tablosuna kayıt atıyoruz
       const { error: dbError } = await supabase
         .from("contact_messages")
         .insert([
@@ -103,7 +103,25 @@ export default function ContactPage() {
 
       if (dbError) throw dbError;
 
-      // 2. Mail API'sini çağırıyoruz ve yanıtı kontrol ediyoruz
+      // 2. Master v2 - Madde 6: Admin Messages inbox'ın okuduğu 'messages' tablosuna da senkronize ediyoruz
+      const { error: adminInboxError } = await supabase
+        .from("messages")
+        .insert([
+          {
+            sender_name: formData.name,
+            sender_email: formData.email || null,
+            sender_phone: formData.phone || null,
+            message: formData.message,
+            is_read: false,
+            is_archived: false,
+          },
+        ]);
+
+      if (adminInboxError) {
+        console.error("Error syncing to admin inbox messages table:", adminInboxError);
+      }
+
+      // 3. Mail API'sini çağırıyoruz ve yanıtı kontrol ediyoruz
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: {

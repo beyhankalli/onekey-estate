@@ -1,21 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Star, MessageSquareQuote } from "lucide-react";
 
 export default function ReviewsPage() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     async function fetchReviews() {
-      const { data } = await supabase.from("reviews").select("*").eq("is_approved", true).order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("reviews")
+        .select("*")
+        .eq("is_approved", true)
+        .order("created_at", { ascending: false });
       if (data) setReviews(data);
       setLoading(false);
     }
-    fetchReviews();
+    void fetchReviews();
   }, [supabase]);
 
   if (loading) return <div className="min-h-screen pt-32 text-center text-gray-500">Loading reviews...</div>;

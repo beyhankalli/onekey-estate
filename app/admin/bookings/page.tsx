@@ -259,12 +259,36 @@ export default function AdminBookingsPage() {
 
   const updateStatus = async (
     id: string,
-    newStatus: BookingStatus
+    newStatus: BookingStatus,
+    currentBookingDetails?: Booking
   ) => {
     setUpdatingId(id);
+    const supabase = createClient();
 
     try {
-      const supabase = createClient();
+      // Master v2 - Madde 17: Admin Confirmation Conflict Check
+      // Onaylarken o slotta başka bir rezervasyon var mı kontrol et
+      if (newStatus === "confirmed" && currentBookingDetails) {
+        const { data: overlappingBookings, error: overlapError } = await supabase
+          .from("bookings")
+          .select("id")
+          .eq("property_id", currentBookingDetails.property_id)
+          .eq("viewing_date", currentBookingDetails.viewing_date)
+          .in("status", ["confirmed", "pending"])
+          .neq("id", currentBookingDetails.id)
+          .or(
+            `and(start_time.gte.${currentBookingDetails.start_time},start_time.lt.${currentBookingDetails.end_time}),` +
+            `and(end_time.gt.${currentBookingDetails.start_time},end_time.lte.${currentBookingDetails.end_time}),` +
+            `and(start_time.lte.${currentBookingDetails.start_time},end_time.gte.${currentBookingDetails.end_time})`
+          );
+
+        if (overlapError) throw overlapError;
+
+        if (overlappingBookings && overlappingBookings.length > 0) {
+          alert("Conflict Warning: There is another confirmed or pending booking during this time slot for this property.");
+          return;
+        }
+      }
 
       const { error } = await supabase
         .from("bookings")
@@ -308,6 +332,8 @@ export default function AdminBookingsPage() {
       }
 
       await fetchData();
+    } catch (error: any) {
+      alert("Error confirming booking: " + error.message);
     } finally {
       setUpdatingId(null);
     }
@@ -355,6 +381,29 @@ export default function AdminBookingsPage() {
     try {
       const supabase = createClient();
 
+      // Master v2 - Madde 16: Admin Reschedule Conflict Check
+      // Yeniden planlarken çakışan slot var mı kontrol et
+      const { data: overlappingBookings, error: overlapError } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("property_id", editingBooking.property_id)
+        .eq("viewing_date", editDate)
+        .in("status", ["confirmed", "pending"])
+        .neq("id", editingBooking.id)
+        .or(
+          `and(start_time.gte.${editStartTime},start_time.lt.${editEndTime}),` +
+          `and(end_time.gt.${editStartTime},end_time.lte.${editEndTime}),` +
+          `and(start_time.lte.${editStartTime},end_time.gte.${editEndTime})`
+        );
+
+      if (overlapError) throw overlapError;
+
+      if (overlappingBookings && overlappingBookings.length > 0) {
+        alert("Conflict Warning: The selected time slot overlaps with another booking for this property.");
+        setSavingEdit(false);
+        return;
+      }
+
       const { error } = await supabase
         .from("bookings")
         .update({
@@ -374,6 +423,8 @@ export default function AdminBookingsPage() {
 
       closeEditBooking();
       await fetchData();
+    } catch (error: any) {
+      alert("Error saving booking: " + error.message);
     } finally {
       setSavingEdit(false);
     }
@@ -629,7 +680,7 @@ export default function AdminBookingsPage() {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  void updateStatus(b.id, "confirmed")
+                                  void updateStatus(b.id, "confirmed", b)
                                 }
                                 disabled={isUpdating}
                                 className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg disabled:opacity-50 transition-colors"

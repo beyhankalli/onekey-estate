@@ -127,7 +127,6 @@ export default function PropertyDetailsPage() {
     async function fetchProperty() {
       const supabase = createClient();
 
-      // Madde 2: status = Published filtresi eklendi
       const { data: propData, error: propError } = await supabase
         .from("properties")
         .select("*, agents(*)")
@@ -178,7 +177,6 @@ export default function PropertyDetailsPage() {
     };
   }, [id, router]);
 
-  // Madde 4: selectedTime dependency'den çıkarıldı (Gereksiz DB request engellendi)
   useEffect(() => {
     let cancelled = false;
 
@@ -190,13 +188,23 @@ export default function PropertyDetailsPage() {
       const supabase = createClient();
       setBookingError("");
 
+      // Madde 18: Geçmiş tarih kontrolü
+      const todayStr = getLocalDateString();
+      if (selectedDate < todayStr) {
+        setAvailableSlots([]);
+        setSelectedTime("");
+        setBookingError("You cannot schedule a viewing for a past date.");
+        return;
+      }
+
       const dateObj = new Date(`${selectedDate}T00:00:00`);
-      if (dateObj.getDay() === 0) {
+      if (dateObj.getDay() === 0) { // Pazarları kapat
         setAvailableSlots([]);
         setSelectedTime("");
         return;
       }
 
+      // Madde 19: Blocked date validation for Agent
       const { data: blocks } = await supabase
         .from("blocked_dates")
         .select("*")
@@ -227,11 +235,13 @@ export default function PropertyDetailsPage() {
           if (!block.start_time || !block.end_time) {
             isFullDayBlocked = true;
           } else {
-            const blockStart = block.start_time.substring(0, 5);
-            const blockEnd = block.end_time.substring(0, 5);
+            const blockStartHour = parseInt(block.start_time.split(":")[0], 10);
+            const blockEndHour = parseInt(block.end_time.split(":")[0], 10);
 
             allSlots.forEach((slot) => {
-              if (slot >= blockStart && slot < blockEnd) {
+              const slotHour = parseInt(slot.split(":")[0], 10);
+              // Eğer slot saati block başlangıç-bitiş aralığındaysa o slotu çıkar
+              if (slotHour >= blockStartHour && slotHour < blockEndHour) {
                 specificallyBlockedSlots.push(slot);
               }
             });
@@ -245,23 +255,43 @@ export default function PropertyDetailsPage() {
         return;
       }
 
+      // Mevcut rezervasyonları çek (Double Booking'i önlemek için slotları dolu göster)
       const { data: existingBookings } = await supabase
         .from("bookings")
         .select("start_time")
-        .eq("agent_id", property.agents.id)
+        .eq("property_id", id) // Mülkün kendisi de dolu olabilir
+        .eq("viewing_date", selectedDate)
+        .in("status", ["pending", "confirmed"]);
+
+      const { data: agentBookings } = await supabase
+        .from("bookings")
+        .select("start_time")
+        .eq("agent_id", property.agents.id) // Agent başka bir mülkte olabilir
         .eq("viewing_date", selectedDate)
         .in("status", ["pending", "confirmed"]);
 
       if (cancelled) return;
 
-      const bookedTimes =
-        existingBookings?.map((b) => b.start_time.substring(0, 5)) || [];
+      const bookedTimes = [
+        ...(existingBookings?.map((b) => b.start_time.substring(0, 5)) || []),
+        ...(agentBookings?.map((b) => b.start_time.substring(0, 5)) || [])
+      ];
 
-      const freeSlots = allSlots.filter(
-        (slot) =>
+      // Eğer seçilen tarih bugün ise, geçmiş saatleri de kapat
+      const now = new Date();
+      const currentHour = now.getHours();
+      const isToday = selectedDate === todayStr;
+
+      const freeSlots = allSlots.filter((slot) => {
+        const slotHour = parseInt(slot.split(":")[0], 10);
+        const isPastHour = isToday && slotHour <= currentHour;
+        
+        return (
           !bookedTimes.includes(slot) &&
-          !specificallyBlockedSlots.includes(slot)
-      );
+          !specificallyBlockedSlots.includes(slot) &&
+          !isPastHour
+        );
+      });
 
       setAvailableSlots(freeSlots);
 
@@ -275,7 +305,7 @@ export default function PropertyDetailsPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, property?.agents?.id]);
+  }, [selectedDate, property?.agents?.id, id]);
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,7 +315,6 @@ export default function PropertyDetailsPage() {
       return;
     }
 
-    // Madde 5: Geçmiş tarih server-side kontrolü
     const todayStr = getLocalDateString();
     if (selectedDate < todayStr) {
       setBookingError("You cannot schedule a viewing for a past date.");
@@ -305,31 +334,53 @@ export default function PropertyDetailsPage() {
       const hour = parseInt(selectedTime.split(":")[0], 10);
       const endTime = `${(hour + 1).toString().padStart(2, "0")}:00:00`;
 
-      // Madde 1: Doğrudan insert yerine güvenli atomik RPC çağrısı (Race condition korumalı)
+      const { data: authData } = await supabase.auth.getUser();
+      let customerId: string | null = null;
+
+      if (authData?.user) {
+        const { data: custData } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("auth_user_id", authData.user.id)
+          .single();
+        if (custData) {
+          customerId = custData.id;
+        }
+      }
+
+      // Doğrudan veritabanı kısıtlamalarına güvenen atomik RPC kullanımı
       const { data: rpcData, error } = await supabase.rpc(
-        "create_pending_booking",
+        "create_booking",
         {
           p_property_id: property.id,
-          p_agent_id: property.agents.id,
+          p_customer_id: customerId, // Null olsa bile misafir girişi olarak kabul eder
+          p_customer_email: userEmail.trim(),
           p_viewing_date: selectedDate,
           p_start_time: `${selectedTime}:00`,
-          p_end_time: endTime,
-          p_customer_name: userName.trim(),
-          p_customer_email: userEmail.trim(),
-          p_customer_phone: userPhone.trim(),
+          p_end_time: endTime
         }
       );
 
+      // RPC yukarıdaki bilgileri kullanarak sadece kayıt atar. Kalanları update ediyoruz (veya RPC'ye dahil etmelisiniz).
       if (error) {
-        if (error.code === "23505") {
+        if (error.code === "P0001" || error.message.includes("already booked")) {
           throw new Error("This time slot was just booked by someone else.");
         }
         throw error;
       }
 
-      const bookingId = rpcData?.id || rpcData;
+      const bookingId = rpcData;
 
-      // Madde 6: Bildirim gönderimi hata yönetimi (Email gitmese bile booking başarısını yutmamak için detaylı loglama)
+      // Kalan alanları güncelliyoruz (Customer Name, Phone)
+      await supabase
+        .from("bookings")
+        .update({
+          customer_name: userName.trim(),
+          customer_phone: userPhone.trim(),
+          agent_id: property.agents.id
+        })
+        .eq("id", bookingId);
+
       try {
         const notificationResponse = await fetch("/api/bookings/notify", {
           method: "POST",
@@ -340,7 +391,6 @@ export default function PropertyDetailsPage() {
         if (!notificationResponse.ok) {
           const errText = await notificationResponse.text();
           console.error("Booking email notification failed:", errText);
-          setBookingError("Booking created, but email notification failed to send. Our team has been notified.");
         }
       } catch (notificationError) {
         console.error("Booking email notification request failed:", notificationError);
@@ -363,7 +413,6 @@ export default function PropertyDetailsPage() {
     try {
       const supabase = createClient();
 
-      // Madde 8: Oturum açmış müşteri varsa customer_id eklenerek hesap ile ilişkilendirilir
       const { data: authData } = await supabase.auth.getUser();
       let customerId: string | null = null;
 
@@ -391,7 +440,6 @@ export default function PropertyDetailsPage() {
 
       if (error) throw error;
 
-      // Madde 7: Contact email bildirimi hata kontrolü
       try {
         const notificationResponse = await fetch("/api/contact", {
           method: "POST",

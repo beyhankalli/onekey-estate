@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useWishlist } from "@/context/WishlistContext";
@@ -11,7 +11,7 @@ export default function WishlistPage() {
   const { wishlist, toggleWishlist } = useWishlist();
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     async function fetchSavedProperties() {
@@ -37,7 +37,7 @@ export default function WishlistPage() {
       setLoading(false);
     }
 
-    fetchSavedProperties();
+    void fetchSavedProperties();
   }, [wishlist, supabase]);
 
   if (loading) {
@@ -120,10 +120,9 @@ export default function WishlistPage() {
                       </span>
                     </div>
 
-                    {/* YENİ: Kartın üzerindeki Kalp Butonu (Silmek için) */}
                     <button 
                       onClick={(e) => {
-                        e.preventDefault(); // Linke tıklanmasını engeller, sadece favoriden çıkarır
+                        e.preventDefault();
                         toggleWishlist(property.id);
                       }}
                       className="absolute top-4 right-4 p-2.5 rounded-full bg-white/90 text-red-500 hover:bg-white transition-colors shadow-sm"

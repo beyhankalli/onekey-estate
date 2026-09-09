@@ -10,7 +10,8 @@ import HomeFeaturedProperties from "@/components/HomeFeaturedProperties";
 
 export default function HomePage() {
   return (
-    <main className="flex min-h-screen flex-col">
+    // Master v2 - Madde 30: <main> etiketi SEO için <div> ile değiştirildi
+    <div className="flex min-h-screen flex-col">
       <Hero />
       <HomeFeaturedProperties />
       <WhyOneKey />
@@ -18,11 +19,6 @@ export default function HomePage() {
       <AboutPreview />
       <ReviewsPreview />
       <FinalCTA />
-      
-      {/* 
-        DİKKAT: <Footer /> bileşenini buradan kaldırdık. 
-        Çünkü sitemizin ana iskeleti olan layout.tsx dosyasında zaten bir Footer var.
-      */}
-    </main>
+    </div>
   );
 }

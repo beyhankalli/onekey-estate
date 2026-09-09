@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Hash,
   CreditCard,
+  Loader2,
 } from "lucide-react";
 
 type ActiveTab =
@@ -91,18 +92,25 @@ export default function CustomerAccountDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  
+  // Lazy Loading State'leri (Sadece sekme açıldığında dolacak)
+  const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [savedProperties, setSavedProperties] = useState<SavedProperty[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
 
+  // Sekme bazlı yüklenme göstergeleri (Loading flags)
+  const [tabLoading, setTabLoading] = useState(false);
+  const [loadedTabs, setLoadedTabs] = useState<Record<string, boolean>>({});
+
+  // 1. Adım: Sadece müşteri temel bilgilerini ve özet sayaçları hızlıca yükle
   useEffect(() => {
     let active = true;
-    const supabase = createClient(); // Instance localized to avoid dependency cycle
+    const supabase = createClient();
 
-    async function loadCustomerData() {
+    async function loadInitialData() {
       try {
         setLoading(true);
 
@@ -126,120 +134,58 @@ export default function CustomerAccountDashboard() {
 
         if (!custData) {
           await supabase.auth.signOut();
-
           if (active) {
             setCustomer(null);
             setLoading(false);
           }
-
           router.replace("/login?error=account-not-linked");
           return;
         }
 
         if (custData.is_active === false) {
           await supabase.auth.signOut();
-
           if (active) {
             setCustomer(null);
             setLoading(false);
           }
-
           router.replace("/login?error=account-disabled");
           return;
         }
 
         if (!active) return;
-
         setCustomer(custData as Customer);
 
+        // Overview ekranı için hızlıca sayaçları çekelim
         const customerId = custData.id;
+        const robustIdFilter = `customer_id.eq.${customerId},customer_id.eq.${user.id}`;
 
         const [
-          { data: savedData },
-          { data: bookData },
-          { data: msgData },
-          { data: appData },
-          { data: payData },
+          { count: savedCount },
+          { count: bookCount },
+          { count: payCount },
         ] = await Promise.all([
-          supabase
-            .from("saved_properties")
-            .select("id, property:properties(*)")
-            .eq("customer_id", customerId),
-
-          supabase
-            .from("bookings")
-            .select("*, property:properties(title)")
-            .or(`customer_id.eq.${customerId},customer_email.eq.${user.email}`)
-            .order("viewing_date", { ascending: false }),
-
-          supabase
-            .from("messages")
-            .select("*")
-            .eq("customer_id", customerId)
-            .order("created_at", { ascending: false }),
-
-          supabase
-            .from("applications")
-            .select("*, property:properties(title)")
-            .eq("customer_id", customerId),
-
-          supabase
-            .from("customer_payment_records")
-            .select("*")
-            .eq("customer_id", customerId)
-            .order("payment_month", { ascending: false }),
+          supabase.from("saved_properties").select("*", { count: "exact", head: true }).or(robustIdFilter),
+          supabase.from("bookings").select("*", { count: "exact", head: true }).or(`customer_id.eq.${customerId},customer_id.eq.${user.id},customer_email.eq.${user.email}`),
+          supabase.from("customer_payment_records").select("*", { count: "exact", head: true }).or(robustIdFilter),
         ]);
 
-        if (!active) return;
-
-        if (savedData) {
-          setSavedProperties(
-            savedData.map((item) => ({
-              id: item.id,
-              property: Array.isArray(item.property)
-                ? item.property[0] ?? null
-                : item.property,
-            })) as SavedProperty[]
-          );
-        }
-
-        if (bookData) {
-          setBookings(bookData as Booking[]);
-        }
-
-        if (msgData) {
-          setMessages(msgData as Message[]);
-        }
-
-        if (appData) {
-          setApplications(appData as Application[]);
-        }
-
-        if (payData) {
-          setPayments(payData as PaymentRecord[]);
-        }
+        // Geçici olarak overview sayılarını mock/state üzerinden tutabiliriz ya da lazy yükletebiliriz
+        setLoadedTabs(prev => ({ ...prev, overview: true }));
       } catch (err) {
         console.error("Error loading account hub:", err);
-
-        if (active) {
-          setCustomer(null);
-        }
+        if (active) setCustomer(null);
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
 
-    loadCustomerData();
+    void loadInitialData();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session?.user) {
-        if (active) {
-          router.replace("/login");
-        }
+        if (active) router.replace("/login");
       }
     });
 
@@ -247,11 +193,88 @@ export default function CustomerAccountDashboard() {
       active = false;
       subscription.unsubscribe();
     };
-  }, [router]); // Removed supabase from dependency array
+  }, [router]);
+
+  // 2. Adım: Master v2 - Madde 27 (Lazy Loading): Kullanıcı sekmeye tıkladığında veriyi on-demand çek
+  const fetchTabData = useCallback(async (tab: ActiveTab) => {
+    if (!customer) return;
+    
+    // Eğer sekme zaten yüklendiyse tekrar tekrar istek atmaya gerek yok
+    if (loadedTabs[tab] && tab !== "overview") return;
+
+    const supabase = createClient();
+    const customerId = customer.id;
+    const robustIdFilter = `customer_id.eq.${customerId},customer_id.eq.${customer.auth_user_id}`;
+
+    setTabLoading(true);
+
+    try {
+      if (tab === "saved") {
+        const { data } = await supabase
+          .from("saved_properties")
+          .select("id, property:properties(*)")
+          .or(robustIdFilter);
+
+        if (data) {
+          setSavedProperties(
+            data.map((item) => ({
+              id: item.id,
+              property: Array.isArray(item.property)
+                ? item.property[0] ?? null
+                : item.property,
+            })) as SavedProperty[]
+          );
+        }
+      } else if (tab === "bookings") {
+        const { data } = await supabase
+          .from("bookings")
+          .select("*, property:properties(title)")
+          .or(`customer_id.eq.${customerId},customer_id.eq.${customer.auth_user_id},customer_email.eq.${customer.email}`)
+          .order("viewing_date", { ascending: false });
+
+        if (data) setBookings(data as Booking[]);
+      } else if (tab === "messages") {
+        const { data } = await supabase
+          .from("messages")
+          .select("*")
+          .or(robustIdFilter)
+          .order("created_at", { ascending: false });
+
+        if (data) setMessages(data as Message[]);
+      } else if (tab === "applications") {
+        const { data } = await supabase
+          .from("applications")
+          .select("*, property:properties(title)")
+          .or(robustIdFilter);
+
+        if (data) setApplications(data as Application[]);
+      } else if (tab === "payments") {
+        const { data } = await supabase
+          .from("customer_payment_records")
+          .select("*")
+          .or(robustIdFilter)
+          .order("payment_month", { ascending: false });
+
+        if (data) setPayments(data as PaymentRecord[]);
+      }
+
+      setLoadedTabs((prev) => ({ ...prev, [tab]: true }));
+    } catch (err) {
+      console.error(`Error loading tab data for ${tab}:`, err);
+    } finally {
+      setTabLoading(false);
+    }
+  }, [customer, loadedTabs]);
+
+  // Sekme değiştiğinde lazy load tetikleyicisi
+  useEffect(() => {
+    if (customer && activeTab !== "overview" && activeTab !== "profile") {
+      void fetchTabData(activeTab);
+    }
+  }, [activeTab, customer, fetchTabData]);
 
   const handleSignOut = async () => {
     setLoading(true);
-
     const supabase = createClient();
     const { error } = await supabase.auth.signOut();
 
@@ -267,36 +290,12 @@ export default function CustomerAccountDashboard() {
 
   const tabs: AccountTab[] = [
     { id: "overview", label: "Overview", icon: User },
-    {
-      id: "saved",
-      label: `Saved Properties (${savedProperties.length})`,
-      icon: Heart,
-    },
-    {
-      id: "bookings",
-      label: `Viewings (${bookings.length})`,
-      icon: Calendar,
-    },
-    {
-      id: "messages",
-      label: `Messages (${messages.length})`,
-      icon: MessageSquare,
-    },
-    {
-      id: "applications",
-      label: `Applications (${applications.length})`,
-      icon: FileText,
-    },
-    {
-      id: "payments",
-      label: `Payments (${payments.length})`,
-      icon: CreditCard,
-    },
-    {
-      id: "profile",
-      label: "Profile & Settings",
-      icon: User,
-    },
+    { id: "saved", label: `Saved Properties (${savedProperties.length})`, icon: Heart },
+    { id: "bookings", label: `Viewings (${bookings.length})`, icon: Calendar },
+    { id: "messages", label: `Notifications & Messages (${messages.length})`, icon: MessageSquare },
+    { id: "applications", label: `Applications (${applications.length})`, icon: FileText },
+    { id: "payments", label: `Payments (${payments.length})`, icon: CreditCard },
+    { id: "profile", label: "Profile & Settings", icon: User },
   ];
 
   if (loading) {
@@ -360,9 +359,7 @@ export default function CustomerAccountDashboard() {
               >
                 <Icon
                   className={`w-4 h-4 ${
-                    activeTab === tab.id
-                      ? "text-white"
-                      : "text-[#ae884e]"
+                    activeTab === tab.id ? "text-white" : "text-[#ae884e]"
                   }`}
                 />
                 {tab.label}
@@ -371,7 +368,15 @@ export default function CustomerAccountDashboard() {
           })}
         </div>
 
-        {activeTab === "overview" && (
+        {/* Sekme Yükleniyor Durumu */}
+        {tabLoading && (
+          <div className="py-12 flex items-center justify-center bg-white rounded-2xl border border-gray-100 shadow-sm mb-6">
+            <Loader2 className="w-6 h-6 animate-spin text-[#ae884e] mr-2" />
+            <span className="text-sm text-gray-500 font-medium">Loading section data...</span>
+          </div>
+        )}
+
+        {!tabLoading && activeTab === "overview" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-300">
             <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex justify-between items-center mb-6">
@@ -435,7 +440,7 @@ export default function CustomerAccountDashboard() {
           </div>
         )}
 
-        {activeTab === "saved" && (
+        {!tabLoading && activeTab === "saved" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 animate-in fade-in duration-300">
             <h2 className="text-xl font-bold text-gray-900 mb-6">
               Your Saved Properties
@@ -449,7 +454,6 @@ export default function CustomerAccountDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {savedProperties.map((item) => {
                   const prop = item.property;
-
                   if (!prop) return null;
 
                   return (
@@ -486,7 +490,7 @@ export default function CustomerAccountDashboard() {
           </div>
         )}
 
-        {activeTab === "bookings" && (
+        {!tabLoading && activeTab === "bookings" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 animate-in fade-in duration-300">
             <h2 className="text-xl font-bold text-gray-900 mb-6">
               Your Viewing Bookings
@@ -518,8 +522,7 @@ export default function CustomerAccountDashboard() {
                       className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                         b.status === "confirmed"
                           ? "bg-green-100 text-green-700"
-                          : b.status === "rejected" ||
-                            b.status === "cancelled"
+                          : b.status === "rejected" || b.status === "cancelled"
                           ? "bg-red-100 text-red-700"
                           : "bg-amber-100 text-amber-700"
                       }`}
@@ -533,15 +536,15 @@ export default function CustomerAccountDashboard() {
           </div>
         )}
 
-        {activeTab === "messages" && (
+        {!tabLoading && activeTab === "messages" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 animate-in fade-in duration-300">
             <h2 className="text-xl font-bold text-gray-900 mb-6">
-              Your Messages & Enquiries
+              Your Notifications & Messages
             </h2>
 
             {messages.length === 0 ? (
               <p className="text-sm text-gray-500 bg-gray-50 p-6 rounded-xl border border-gray-100 text-center">
-                No messages sent yet.
+                No notifications or messages found.
               </p>
             ) : (
               <div className="space-y-4">
@@ -564,7 +567,7 @@ export default function CustomerAccountDashboard() {
           </div>
         )}
 
-        {activeTab === "applications" && (
+        {!tabLoading && activeTab === "applications" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 animate-in fade-in duration-300">
             <h2 className="text-xl font-bold text-gray-900 mb-6">
               Your Rental Applications
@@ -611,7 +614,7 @@ export default function CustomerAccountDashboard() {
           </div>
         )}
 
-        {activeTab === "payments" && (
+        {!tabLoading && activeTab === "payments" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 animate-in fade-in duration-300 space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-6">
               <div>
@@ -620,8 +623,7 @@ export default function CustomerAccountDashboard() {
                 </h2>
 
                 <p className="text-xs text-gray-500 mt-1">
-                  Manage saved cards, set up Direct Debit, or make secure demo
-                  payments.
+                  View your outstanding balances and payment records securely.
                 </p>
               </div>
 
@@ -664,6 +666,8 @@ export default function CustomerAccountDashboard() {
                         className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                           p.status === "paid"
                             ? "bg-green-100 text-green-800"
+                            : p.status === "overdue"
+                            ? "bg-red-100 text-red-800"
                             : "bg-amber-100 text-amber-800"
                         }`}
                       >
@@ -677,7 +681,7 @@ export default function CustomerAccountDashboard() {
           </div>
         )}
 
-        {activeTab === "profile" && (
+        {!tabLoading && activeTab === "profile" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 max-w-xl animate-in fade-in duration-300">
             <h2 className="text-xl font-bold text-gray-900 mb-6">
               Client Profile Information

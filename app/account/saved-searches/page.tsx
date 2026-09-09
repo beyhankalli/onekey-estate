@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -16,13 +16,12 @@ interface SavedSearch {
 export default function CustomerSavedSearchesPage() {
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [loading, setLoading] = useState(true);
+  const supabase = useMemo(() => createClient(), []);
 
   const router = useRouter();
 
   useEffect(() => {
     async function loadSavedSearches() {
-      const supabase = createClient();
-
       try {
         const {
           data: { user },
@@ -34,10 +33,23 @@ export default function CustomerSavedSearchesPage() {
           return;
         }
 
+        // Auth ID'yi gerçek müşteri tablosu ID'sine dönüştürüyoruz (customers.auth_user_id -> customers.id)
+        const { data: customerData, error: customerError } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("auth_user_id", user.id)
+          .single();
+
+        if (customerError || !customerData) {
+          setSearches([]);
+          setLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase
           .from("saved_searches")
           .select("*")
-          .eq("customer_id", user.id)
+          .eq("customer_id", customerData.id)
           .order("created_at", { ascending: false });
 
         if (error) {
@@ -59,12 +71,10 @@ export default function CustomerSavedSearchesPage() {
       }
     }
 
-    loadSavedSearches();
-  }, [router]);
+    void loadSavedSearches();
+  }, [router, supabase]);
 
   const handleDelete = async (id: string) => {
-    const supabase = createClient();
-
     const { error } = await supabase
       .from("saved_searches")
       .delete()
