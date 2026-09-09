@@ -155,7 +155,8 @@ export default function ComparePage() {
             )
           `
         )
-        .in("id", compareIds);
+        .in("id", compareIds)
+        .eq("status", "Published");
 
       if (error) {
         console.error("Failed to load comparison properties:", error);

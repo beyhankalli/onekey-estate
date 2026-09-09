@@ -11,8 +11,8 @@ interface SavedProperty {
   id: string;
   title?: string | null;
   short_location?: string | null;
-  property_type?: string | null;
-  price?: number | string | null;
+  type?: string | null;
+  monthly_rent?: number | string | null;
   images?: string[] | null;
 }
 
@@ -37,7 +37,6 @@ export default function CustomerSavedPropertiesPage() {
           return;
         }
 
-        // LocalStorage'dan veya mevcut wishlist yapısından favorileri çekiyoruz
         const storedWishlist = localStorage.getItem("onekey_wishlist");
 
         if (storedWishlist) {
@@ -165,7 +164,7 @@ export default function CustomerSavedPropertiesPage() {
 
                       <div className="p-5">
                         <span className="text-xs font-semibold text-[#ae884e] uppercase tracking-wider">
-                          {property.property_type || "Property"}
+                          {property.type || "Property"}
                         </span>
 
                         <h3 className="font-semibold text-gray-900 text-lg mt-1">
@@ -177,7 +176,7 @@ export default function CustomerSavedPropertiesPage() {
                         </p>
 
                         <p className="text-lg font-bold text-[#1c3053] mt-3">
-                          £{Number(property.price || 0).toLocaleString()}
+                          £{Number(property.monthly_rent || 0).toLocaleString()} PCM
                         </p>
                       </div>
                     </div>

@@ -22,11 +22,12 @@ export default function WishlistPage() {
         return;
       }
 
-      // Sadece favori listemizdeki ID'lere sahip ilanları ve fotoğraflarını çekiyoruz
+      // Sadece favori listemizdeki ID'lere sahip ve status değeri Published olan ilanları çekiyoruz
       const { data, error } = await supabase
         .from("properties")
         .select("*, property_images(url, image_type)")
-        .in("id", wishlist);
+        .in("id", wishlist)
+        .eq("status", "Published");
 
       if (data) {
         setProperties(data);

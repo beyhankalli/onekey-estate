@@ -93,7 +93,6 @@ export default function CustomerAccountDashboard() {
   const [loading, setLoading] = useState(true);
   const [customer, setCustomer] = useState<Customer | null>(null);
   
-  // Lazy Loading State'leri (Sadece sekme açıldığında dolacak)
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [savedProperties, setSavedProperties] = useState<SavedProperty[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -101,11 +100,16 @@ export default function CustomerAccountDashboard() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
 
-  // Sekme bazlı yüklenme göstergeleri (Loading flags)
+  // Özet sayaçlar için state'ler (Madde 4 düzeltmesi)
+  const [counts, setCounts] = useState({
+    saved: 0,
+    bookings: 0,
+    payments: 0,
+  });
+
   const [tabLoading, setTabLoading] = useState(false);
   const [loadedTabs, setLoadedTabs] = useState<Record<string, boolean>>({});
 
-  // 1. Adım: Sadece müşteri temel bilgilerini ve özet sayaçları hızlıca yükle
   useEffect(() => {
     let active = true;
     const supabase = createClient();
@@ -155,7 +159,6 @@ export default function CustomerAccountDashboard() {
         if (!active) return;
         setCustomer(custData as Customer);
 
-        // Overview ekranı için hızlıca sayaçları çekelim
         const customerId = custData.id;
         const robustIdFilter = `customer_id.eq.${customerId},customer_id.eq.${user.id}`;
 
@@ -169,7 +172,14 @@ export default function CustomerAccountDashboard() {
           supabase.from("customer_payment_records").select("*", { count: "exact", head: true }).or(robustIdFilter),
         ]);
 
-        // Geçici olarak overview sayılarını mock/state üzerinden tutabiliriz ya da lazy yükletebiliriz
+        if (active) {
+          setCounts({
+            saved: savedCount ?? 0,
+            bookings: bookCount ?? 0,
+            payments: payCount ?? 0,
+          });
+        }
+
         setLoadedTabs(prev => ({ ...prev, overview: true }));
       } catch (err) {
         console.error("Error loading account hub:", err);
@@ -195,11 +205,9 @@ export default function CustomerAccountDashboard() {
     };
   }, [router]);
 
-  // 2. Adım: Master v2 - Madde 27 (Lazy Loading): Kullanıcı sekmeye tıkladığında veriyi on-demand çek
   const fetchTabData = useCallback(async (tab: ActiveTab) => {
     if (!customer) return;
     
-    // Eğer sekme zaten yüklendiyse tekrar tekrar istek atmaya gerek yok
     if (loadedTabs[tab] && tab !== "overview") return;
 
     const supabase = createClient();
@@ -216,14 +224,14 @@ export default function CustomerAccountDashboard() {
           .or(robustIdFilter);
 
         if (data) {
-          setSavedProperties(
-            data.map((item) => ({
-              id: item.id,
-              property: Array.isArray(item.property)
-                ? item.property[0] ?? null
-                : item.property,
-            })) as SavedProperty[]
-          );
+          const mapped = data.map((item) => ({
+            id: item.id,
+            property: Array.isArray(item.property)
+              ? item.property[0] ?? null
+              : item.property,
+          })) as SavedProperty[];
+          setSavedProperties(mapped);
+          setCounts(prev => ({ ...prev, saved: mapped.length }));
         }
       } else if (tab === "bookings") {
         const { data } = await supabase
@@ -232,7 +240,11 @@ export default function CustomerAccountDashboard() {
           .or(`customer_id.eq.${customerId},customer_id.eq.${customer.auth_user_id},customer_email.eq.${customer.email}`)
           .order("viewing_date", { ascending: false });
 
-        if (data) setBookings(data as Booking[]);
+        if (data) {
+          const typedData = data as Booking[];
+          setBookings(typedData);
+          setCounts(prev => ({ ...prev, bookings: typedData.length }));
+        }
       } else if (tab === "messages") {
         const { data } = await supabase
           .from("messages")
@@ -255,7 +267,11 @@ export default function CustomerAccountDashboard() {
           .or(robustIdFilter)
           .order("payment_month", { ascending: false });
 
-        if (data) setPayments(data as PaymentRecord[]);
+        if (data) {
+          const typedData = data as PaymentRecord[];
+          setPayments(typedData);
+          setCounts(prev => ({ ...prev, payments: typedData.length }));
+        }
       }
 
       setLoadedTabs((prev) => ({ ...prev, [tab]: true }));
@@ -266,7 +282,6 @@ export default function CustomerAccountDashboard() {
     }
   }, [customer, loadedTabs]);
 
-  // Sekme değiştiğinde lazy load tetikleyicisi
   useEffect(() => {
     if (customer && activeTab !== "overview" && activeTab !== "profile") {
       void fetchTabData(activeTab);
@@ -290,11 +305,11 @@ export default function CustomerAccountDashboard() {
 
   const tabs: AccountTab[] = [
     { id: "overview", label: "Overview", icon: User },
-    { id: "saved", label: `Saved Properties (${savedProperties.length})`, icon: Heart },
-    { id: "bookings", label: `Viewings (${bookings.length})`, icon: Calendar },
+    { id: "saved", label: `Saved Properties (${savedProperties.length || counts.saved})`, icon: Heart },
+    { id: "bookings", label: `Viewings (${bookings.length || counts.bookings})`, icon: Calendar },
     { id: "messages", label: `Notifications & Messages (${messages.length})`, icon: MessageSquare },
     { id: "applications", label: `Applications (${applications.length})`, icon: FileText },
-    { id: "payments", label: `Payments (${payments.length})`, icon: CreditCard },
+    { id: "payments", label: `Payments (${payments.length || counts.payments})`, icon: CreditCard },
     { id: "profile", label: "Profile & Settings", icon: User },
   ];
 
@@ -368,7 +383,6 @@ export default function CustomerAccountDashboard() {
           })}
         </div>
 
-        {/* Sekme Yükleniyor Durumu */}
         {tabLoading && (
           <div className="py-12 flex items-center justify-center bg-white rounded-2xl border border-gray-100 shadow-sm mb-6">
             <Loader2 className="w-6 h-6 animate-spin text-[#ae884e] mr-2" />
@@ -387,7 +401,7 @@ export default function CustomerAccountDashboard() {
               </div>
 
               <p className="text-4xl font-extrabold text-gray-900 tracking-tight">
-                {savedProperties.length}
+                {savedProperties.length || counts.saved}
               </p>
 
               <button
@@ -407,7 +421,7 @@ export default function CustomerAccountDashboard() {
               </div>
 
               <p className="text-4xl font-extrabold text-gray-900 tracking-tight">
-                {bookings.length}
+                {bookings.length || counts.bookings}
               </p>
 
               <button
@@ -427,7 +441,7 @@ export default function CustomerAccountDashboard() {
               </div>
 
               <p className="text-4xl font-extrabold text-gray-900 tracking-tight">
-                {payments.length}
+                {payments.length || counts.payments}
               </p>
 
               <button

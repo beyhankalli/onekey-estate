@@ -266,9 +266,14 @@ export default function AdminBookingsPage() {
     const supabase = createClient();
 
     try {
-      // Master v2 - Madde 17: Admin Confirmation Conflict Check
-      // Onaylarken o slotta başka bir rezervasyon var mı kontrol et
+      // Master v2 - Madde 17 / Madde 10: Admin Confirmation Conflict Check (Property & Agent)
       if (newStatus === "confirmed" && currentBookingDetails) {
+        const overlapFilter =
+          `and(start_time.gte.${currentBookingDetails.start_time},start_time.lt.${currentBookingDetails.end_time}),` +
+          `and(end_time.gt.${currentBookingDetails.start_time},end_time.lte.${currentBookingDetails.end_time}),` +
+          `and(start_time.lte.${currentBookingDetails.start_time},end_time.gte.${currentBookingDetails.end_time})`;
+
+        // Property conflict check
         const { data: overlappingBookings, error: overlapError } = await supabase
           .from("bookings")
           .select("id")
@@ -276,17 +281,32 @@ export default function AdminBookingsPage() {
           .eq("viewing_date", currentBookingDetails.viewing_date)
           .in("status", ["confirmed", "pending"])
           .neq("id", currentBookingDetails.id)
-          .or(
-            `and(start_time.gte.${currentBookingDetails.start_time},start_time.lt.${currentBookingDetails.end_time}),` +
-            `and(end_time.gt.${currentBookingDetails.start_time},end_time.lte.${currentBookingDetails.end_time}),` +
-            `and(start_time.lte.${currentBookingDetails.start_time},end_time.gte.${currentBookingDetails.end_time})`
-          );
+          .or(overlapFilter);
 
         if (overlapError) throw overlapError;
 
         if (overlappingBookings && overlappingBookings.length > 0) {
           alert("Conflict Warning: There is another confirmed or pending booking during this time slot for this property.");
           return;
+        }
+
+        // Agent conflict check (Eğer agent atanmışsa)
+        if (currentBookingDetails.agent_id) {
+          const { data: agentOverlaps, error: agentOverlapError } = await supabase
+            .from("bookings")
+            .select("id")
+            .eq("agent_id", currentBookingDetails.agent_id)
+            .eq("viewing_date", currentBookingDetails.viewing_date)
+            .in("status", ["confirmed", "pending"])
+            .neq("id", currentBookingDetails.id)
+            .or(overlapFilter);
+
+          if (agentOverlapError) throw agentOverlapError;
+
+          if (agentOverlaps && agentOverlaps.length > 0) {
+            alert("Conflict Warning: The assigned agent already has another viewing scheduled during this time slot.");
+            return;
+          }
         }
       }
 
@@ -381,8 +401,12 @@ export default function AdminBookingsPage() {
     try {
       const supabase = createClient();
 
-      // Master v2 - Madde 16: Admin Reschedule Conflict Check
-      // Yeniden planlarken çakışan slot var mı kontrol et
+      const overlapFilter =
+        `and(start_time.gte.${editStartTime},start_time.lt.${editEndTime}),` +
+        `and(end_time.gt.${editStartTime},end_time.lte.${editEndTime}),` +
+        `and(start_time.lte.${editStartTime},end_time.gte.${editEndTime})`;
+
+      // Master v2 - Madde 16 / Madde 10: Admin Reschedule Conflict Check (Property & Agent)
       const { data: overlappingBookings, error: overlapError } = await supabase
         .from("bookings")
         .select("id")
@@ -390,11 +414,7 @@ export default function AdminBookingsPage() {
         .eq("viewing_date", editDate)
         .in("status", ["confirmed", "pending"])
         .neq("id", editingBooking.id)
-        .or(
-          `and(start_time.gte.${editStartTime},start_time.lt.${editEndTime}),` +
-          `and(end_time.gt.${editStartTime},end_time.lte.${editEndTime}),` +
-          `and(start_time.lte.${editStartTime},end_time.gte.${editEndTime})`
-        );
+        .or(overlapFilter);
 
       if (overlapError) throw overlapError;
 
@@ -402,6 +422,26 @@ export default function AdminBookingsPage() {
         alert("Conflict Warning: The selected time slot overlaps with another booking for this property.");
         setSavingEdit(false);
         return;
+      }
+
+      // Agent conflict check during edit/reschedule
+      if (editAgentId) {
+        const { data: agentOverlaps, error: agentOverlapError } = await supabase
+          .from("bookings")
+          .select("id")
+          .eq("agent_id", editAgentId)
+          .eq("viewing_date", editDate)
+          .in("status", ["confirmed", "pending"])
+          .neq("id", editingBooking.id)
+          .or(overlapFilter);
+
+        if (agentOverlapError) throw agentOverlapError;
+
+        if (agentOverlaps && agentOverlaps.length > 0) {
+          alert("Conflict Warning: The selected agent already has another viewing scheduled during this time slot.");
+          setSavingEdit(false);
+          return;
+        }
       }
 
       const { error } = await supabase

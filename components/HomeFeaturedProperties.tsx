@@ -27,6 +27,7 @@ export default function HomeFeaturedProperties() {
           .from("properties")
           .select("*, property_images(url, image_type, display_order)")
           .eq("is_featured", true)
+          .eq("status", "Published")
           .order("created_at", { ascending: false })
           .limit(6);
 

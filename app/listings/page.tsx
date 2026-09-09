@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   MapPin,
   Bed,
@@ -92,6 +93,9 @@ const SAVED_SEARCHES_KEY = "onekey_saved_searches";
 const MAX_SAVED_SEARCHES = 10;
 
 export default function PublicListingsPage() {
+  const searchParams = useSearchParams();
+  const initialSearchParam = searchParams.get("search") || "";
+
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { compareIds, toggleCompare, canAddMore } = useCompare();
 
@@ -106,7 +110,7 @@ export default function PublicListingsPage() {
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [saveMessage, setSaveMessage] = useState("");
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(initialSearchParam);
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [minPrice, setMinPrice] = useState<number | "">("");
   const [maxPrice, setMaxPrice] = useState<number | "">("");
@@ -129,7 +133,6 @@ export default function PublicListingsPage() {
 
         const supabase = createClient();
 
-        // Mülk sorgusuna status = Published filtresi eklendi (Güvenlik Master v2 - Madde 3)
         const { data, error: queryError } = await supabase
           .from("properties")
           .select(

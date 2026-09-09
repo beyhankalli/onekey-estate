@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+
 import { useParams, useRouter } from "next/navigation";
+
 import Image from "next/image";
+
 import { createClient } from "@/lib/supabase/client";
+
 import {
   ArrowLeft,
   MapPin,
@@ -26,6 +30,7 @@ import {
   Globe,
   ExternalLink,
 } from "lucide-react";
+
 import { useWishlist } from "@/context/WishlistContext";
 
 interface Agent {
@@ -112,7 +117,6 @@ export default function PropertyDetailsPage() {
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [bookingError, setBookingError] = useState("");
   const [bookingLoading, setBookingLoading] = useState(false);
-  
   const [msgName, setMsgName] = useState("");
   const [msgEmail, setMsgEmail] = useState("");
   const [msgPhone, setMsgPhone] = useState("");
@@ -186,10 +190,12 @@ export default function PropertyDetailsPage() {
       }
 
       const supabase = createClient();
+
       setBookingError("");
 
       // Madde 18: Geçmiş tarih kontrolü
       const todayStr = getLocalDateString();
+
       if (selectedDate < todayStr) {
         setAvailableSlots([]);
         setSelectedTime("");
@@ -198,7 +204,9 @@ export default function PropertyDetailsPage() {
       }
 
       const dateObj = new Date(`${selectedDate}T00:00:00`);
-      if (dateObj.getDay() === 0) { // Pazarları kapat
+
+      if (dateObj.getDay() === 0) {
+        // Pazarları kapat
         setAvailableSlots([]);
         setSelectedTime("");
         return;
@@ -235,11 +243,19 @@ export default function PropertyDetailsPage() {
           if (!block.start_time || !block.end_time) {
             isFullDayBlocked = true;
           } else {
-            const blockStartHour = parseInt(block.start_time.split(":")[0], 10);
-            const blockEndHour = parseInt(block.end_time.split(":")[0], 10);
+            const blockStartHour = parseInt(
+              block.start_time.split(":")[0],
+              10
+            );
+
+            const blockEndHour = parseInt(
+              block.end_time.split(":")[0],
+              10
+            );
 
             allSlots.forEach((slot) => {
               const slotHour = parseInt(slot.split(":")[0], 10);
+
               // Eğer slot saati block başlangıç-bitiş aralığındaysa o slotu çıkar
               if (slotHour >= blockStartHour && slotHour < blockEndHour) {
                 specificallyBlockedSlots.push(slot);
@@ -259,14 +275,14 @@ export default function PropertyDetailsPage() {
       const { data: existingBookings } = await supabase
         .from("bookings")
         .select("start_time")
-        .eq("property_id", id) // Mülkün kendisi de dolu olabilir
+        .eq("property_id", id)
         .eq("viewing_date", selectedDate)
         .in("status", ["pending", "confirmed"]);
 
       const { data: agentBookings } = await supabase
         .from("bookings")
         .select("start_time")
-        .eq("agent_id", property.agents.id) // Agent başka bir mülkte olabilir
+        .eq("agent_id", property.agents.id)
         .eq("viewing_date", selectedDate)
         .in("status", ["pending", "confirmed"]);
 
@@ -274,7 +290,7 @@ export default function PropertyDetailsPage() {
 
       const bookedTimes = [
         ...(existingBookings?.map((b) => b.start_time.substring(0, 5)) || []),
-        ...(agentBookings?.map((b) => b.start_time.substring(0, 5)) || [])
+        ...(agentBookings?.map((b) => b.start_time.substring(0, 5)) || []),
       ];
 
       // Eğer seçilen tarih bugün ise, geçmiş saatleri de kapat
@@ -285,7 +301,7 @@ export default function PropertyDetailsPage() {
       const freeSlots = allSlots.filter((slot) => {
         const slotHour = parseInt(slot.split(":")[0], 10);
         const isPastHour = isToday && slotHour <= currentHour;
-        
+
         return (
           !bookedTimes.includes(slot) &&
           !specificallyBlockedSlots.includes(slot) &&
@@ -310,19 +326,30 @@ export default function PropertyDetailsPage() {
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!userName || !userPhone || !userEmail || !selectedDate || !selectedTime) {
-      setBookingError("Please fill in all required fields and select a valid time.");
+    if (
+      !userName ||
+      !userPhone ||
+      !userEmail ||
+      !selectedDate ||
+      !selectedTime
+    ) {
+      setBookingError(
+        "Please fill in all required fields and select a valid time."
+      );
       return;
     }
 
     const todayStr = getLocalDateString();
+
     if (selectedDate < todayStr) {
       setBookingError("You cannot schedule a viewing for a past date.");
       return;
     }
 
     if (!property?.agents?.id) {
-      setBookingError("No agent is currently assigned to this property. Viewing cannot be booked.");
+      setBookingError(
+        "No agent is currently assigned to this property. Viewing cannot be booked."
+      );
       return;
     }
 
@@ -331,10 +358,12 @@ export default function PropertyDetailsPage() {
 
     try {
       const supabase = createClient();
+
       const hour = parseInt(selectedTime.split(":")[0], 10);
       const endTime = `${(hour + 1).toString().padStart(2, "0")}:00:00`;
 
       const { data: authData } = await supabase.auth.getUser();
+
       let customerId: string | null = null;
 
       if (authData?.user) {
@@ -343,43 +372,40 @@ export default function PropertyDetailsPage() {
           .select("id")
           .eq("auth_user_id", authData.user.id)
           .single();
+
         if (custData) {
           customerId = custData.id;
         }
       }
 
-      // Doğrudan veritabanı kısıtlamalarına güvenen atomik RPC kullanımı
-      const { data: rpcData, error } = await supabase.rpc(
+      // Atomik RPC: booking + customer details + agent assignment
+      const { data: bookingId, error } = await supabase.rpc(
         "create_booking",
         {
           p_property_id: property.id,
-          p_customer_id: customerId, // Null olsa bile misafir girişi olarak kabul eder
+          p_customer_id: customerId,
+          p_customer_name: userName.trim(),
           p_customer_email: userEmail.trim(),
+          p_customer_phone: userPhone.trim(),
           p_viewing_date: selectedDate,
           p_start_time: `${selectedTime}:00`,
-          p_end_time: endTime
+          p_end_time: endTime,
         }
       );
 
-      // RPC yukarıdaki bilgileri kullanarak sadece kayıt atar. Kalanları update ediyoruz (veya RPC'ye dahil etmelisiniz).
       if (error) {
-        if (error.code === "P0001" || error.message.includes("already booked")) {
-          throw new Error("This time slot was just booked by someone else.");
+        if (
+          error.code === "P0001" ||
+          error.message.includes("already booked") ||
+          error.message.includes("not available")
+        ) {
+          throw new Error(
+            error.message || "This time slot is no longer available."
+          );
         }
+
         throw error;
       }
-
-      const bookingId = rpcData;
-
-      // Kalan alanları güncelliyoruz (Customer Name, Phone)
-      await supabase
-        .from("bookings")
-        .update({
-          customer_name: userName.trim(),
-          customer_phone: userPhone.trim(),
-          agent_id: property.agents.id
-        })
-        .eq("id", bookingId);
 
       try {
         const notificationResponse = await fetch("/api/bookings/notify", {
@@ -393,7 +419,10 @@ export default function PropertyDetailsPage() {
           console.error("Booking email notification failed:", errText);
         }
       } catch (notificationError) {
-        console.error("Booking email notification request failed:", notificationError);
+        console.error(
+          "Booking email notification request failed:",
+          notificationError
+        );
       }
 
       setBookingConfirmed(true);
@@ -406,6 +435,7 @@ export default function PropertyDetailsPage() {
 
   const handleMessageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     setMsgLoading(true);
     setMsgError("");
     setMsgSuccess(false);
@@ -414,6 +444,7 @@ export default function PropertyDetailsPage() {
       const supabase = createClient();
 
       const { data: authData } = await supabase.auth.getUser();
+
       let customerId: string | null = null;
 
       if (authData?.user) {
@@ -422,6 +453,7 @@ export default function PropertyDetailsPage() {
           .select("id")
           .eq("auth_user_id", authData.user.id)
           .single();
+
         if (custData) {
           customerId = custData.id;
         }
@@ -455,10 +487,16 @@ export default function PropertyDetailsPage() {
         });
 
         if (!notificationResponse.ok) {
-          console.error("Contact email notification failed:", await notificationResponse.text());
+          console.error(
+            "Contact email notification failed:",
+            await notificationResponse.text()
+          );
         }
       } catch (notificationError) {
-        console.error("Contact email notification request failed:", notificationError);
+        console.error(
+          "Contact email notification request failed:",
+          notificationError
+        );
       }
 
       setMsgSuccess(true);
@@ -490,24 +528,30 @@ export default function PropertyDetailsPage() {
     activeTab === "interior"
       ? interiorImages
       : activeTab === "exterior"
-      ? exteriorImages
-      : activeTab === "floorplan" && property?.floor_plan_2d
-      ? [property.floor_plan_2d]
-      : [];
+        ? exteriorImages
+        : activeTab === "floorplan" && property?.floor_plan_2d
+          ? [property.floor_plan_2d]
+          : [];
 
   const currentImage = currentList[currentIndex] || "";
 
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
+
     if (currentList.length > 1) {
-      setCurrentIndex((prev) => (prev === 0 ? currentList.length - 1 : prev - 1));
+      setCurrentIndex((prev) =>
+        prev === 0 ? currentList.length - 1 : prev - 1
+      );
     }
   };
 
   const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
+
     if (currentList.length > 1) {
-      setCurrentIndex((prev) => (prev === currentList.length - 1 ? 0 : prev + 1));
+      setCurrentIndex((prev) =>
+        prev === currentList.length - 1 ? 0 : prev + 1
+      );
     }
   };
 
@@ -528,6 +572,7 @@ export default function PropertyDetailsPage() {
   }) => (
     <div className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
       <span className="text-gray-500 text-sm">{label}</span>
+
       {type === "bool" ? (
         value ? (
           <Check className="w-5 h-5 text-green-600" />
@@ -555,7 +600,10 @@ export default function PropertyDetailsPage() {
 
   if (!property) return null;
 
-  const has3DModel = Boolean(property.model_3d_url && property.has_3d_model);
+  const has3DModel = Boolean(
+    property.model_3d_url && property.has_3d_model
+  );
+
   const hasVirtualTour = Boolean(property.virtual_tour_url);
 
   return (
@@ -828,18 +876,24 @@ export default function PropertyDetailsPage() {
 
               <div className="flex items-center text-gray-600 mb-6">
                 <MapPin className="w-5 h-5 mr-2 text-[#ae884e]" />
-                <span className="text-lg font-medium">{property.full_address}</span>
+                <span className="text-lg font-medium">
+                  {property.full_address}
+                </span>
               </div>
 
               <div className="flex flex-wrap gap-6 border-y border-gray-100 py-6 mb-6">
                 <div className="flex items-center text-gray-600">
                   <Bed className="w-6 h-6 mr-3 text-[#ae884e]" />
-                  <span className="font-light text-lg">{property.bedrooms} Beds</span>
+                  <span className="font-light text-lg">
+                    {property.bedrooms} Beds
+                  </span>
                 </div>
 
                 <div className="flex items-center text-gray-600">
                   <Bath className="w-6 h-6 mr-3 text-[#ae884e]" />
-                  <span className="font-light text-lg">{property.bathrooms} Baths</span>
+                  <span className="font-light text-lg">
+                    {property.bathrooms} Baths
+                  </span>
                 </div>
               </div>
 
@@ -860,13 +914,23 @@ export default function PropertyDetailsPage() {
                     value={`£${property.deposit?.toLocaleString() || "-"}`}
                     type="text"
                   />
+
                   <FeatureRow
                     label="Rent PCM"
                     value={`£${property.monthly_rent?.toLocaleString() || "-"}`}
                     type="text"
                   />
-                  <FeatureRow label="Bills Included" value={property.bills_included} />
-                  <FeatureRow label="DSS/LHA Covers Rent" value={property.dss_lha_covers_rent} />
+
+                  <FeatureRow
+                    label="Bills Included"
+                    value={property.bills_included}
+                  />
+
+                  <FeatureRow
+                    label="DSS/LHA Covers Rent"
+                    value={property.dss_lha_covers_rent}
+                  />
+
                   <FeatureRow
                     label="Broadband"
                     value={property.broadband_info || "Ask Agent"}
@@ -884,12 +948,17 @@ export default function PropertyDetailsPage() {
                     value={property.available_from || "Ask Agent"}
                     type="text"
                   />
+
                   <FeatureRow
                     label="Preferred Minimum Tenancy"
                     value={property.preferred_min_tenancy || "-"}
                     type="text"
                   />
-                  <FeatureRow label="Online Viewings" value={property.online_viewings} />
+
+                  <FeatureRow
+                    label="Online Viewings"
+                    value={property.online_viewings}
+                  />
                 </div>
               </div>
 
@@ -899,10 +968,25 @@ export default function PropertyDetailsPage() {
                 </h3>
 
                 <div className="space-y-4">
-                  <FeatureRow label="Student Friendly" value={property.student_friendly} />
-                  <FeatureRow label="Families Allowed" value={property.families_allowed} />
-                  <FeatureRow label="Pets Allowed" value={property.pets_allowed} />
-                  <FeatureRow label="Smokers Allowed" value={property.smokers_allowed} />
+                  <FeatureRow
+                    label="Student Friendly"
+                    value={property.student_friendly}
+                  />
+
+                  <FeatureRow
+                    label="Families Allowed"
+                    value={property.families_allowed}
+                  />
+
+                  <FeatureRow
+                    label="Pets Allowed"
+                    value={property.pets_allowed}
+                  />
+
+                  <FeatureRow
+                    label="Smokers Allowed"
+                    value={property.smokers_allowed}
+                  />
                 </div>
 
                 <h3 className="text-xl font-semibold text-gray-900 mb-6 mt-8 border-b pb-3">
@@ -913,14 +997,44 @@ export default function PropertyDetailsPage() {
                   <FeatureRow label="Garden" value={property.garden} />
                   <FeatureRow label="Parking" value={property.parking} />
                   <FeatureRow label="Fireplace" value={property.fireplace} />
-                  <FeatureRow label="Furnishing" value={property.furnishing_status} type="text" />
-                  <FeatureRow label="EPC Rating" value={property.epc_rating} type="text" />
-                  <FeatureRow label="Council Tax Band" value={property.council_tax_band} type="text" />
-                  <FeatureRow label="Heating" value={property.heating_type} type="text" />
-                  <FeatureRow label="Tenure" value={property.tenure} type="text" />
+
+                  <FeatureRow
+                    label="Furnishing"
+                    value={property.furnishing_status}
+                    type="text"
+                  />
+
+                  <FeatureRow
+                    label="EPC Rating"
+                    value={property.epc_rating}
+                    type="text"
+                  />
+
+                  <FeatureRow
+                    label="Council Tax Band"
+                    value={property.council_tax_band}
+                    type="text"
+                  />
+
+                  <FeatureRow
+                    label="Heating"
+                    value={property.heating_type}
+                    type="text"
+                  />
+
+                  <FeatureRow
+                    label="Tenure"
+                    value={property.tenure}
+                    type="text"
+                  />
+
                   <FeatureRow
                     label="Minimum Tenancy"
-                    value={property.minimum_tenancy ? `${property.minimum_tenancy} months` : "-"}
+                    value={
+                      property.minimum_tenancy
+                        ? `${property.minimum_tenancy} months`
+                        : "-"
+                    }
                     type="text"
                   />
                 </div>
@@ -951,6 +1065,7 @@ export default function PropertyDetailsPage() {
                     <h4 className="text-lg font-semibold text-gray-900">
                       {property.agents.name}
                     </h4>
+
                     <p className="text-gray-500 text-sm font-light mt-1 mb-4">
                       {property.agents.bio}
                     </p>
@@ -978,7 +1093,10 @@ export default function PropertyDetailsPage() {
 
                       {property.agents.whatsapp && (
                         <a
-                          href={`https://wa.me/${property.agents.whatsapp.replace(/[^0-9]/g, "")}`}
+                          href={`https://wa.me/${property.agents.whatsapp.replace(
+                            /[^0-9]/g,
+                            ""
+                          )}`}
                           target="_blank"
                           rel="noreferrer"
                           className="flex items-center text-sm font-medium text-[#1c3053] bg-gray-50 px-4 py-2 rounded-xl hover:bg-[#ae884e] hover:text-white transition-all"
@@ -1014,7 +1132,10 @@ export default function PropertyDetailsPage() {
             </div>
 
             <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <h3 className="text-2xl font-semibold text-gray-900 mb-2">Have a question?</h3>
+              <h3 className="text-2xl font-semibold text-gray-900 mb-2">
+                Have a question?
+              </h3>
+
               <p className="text-gray-500 font-light mb-8">
                 Send us a message about this property and we'll get back to you shortly.
               </p>
@@ -1022,12 +1143,15 @@ export default function PropertyDetailsPage() {
               {msgSuccess ? (
                 <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
                   <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+
                   <h4 className="text-lg font-semibold text-green-900 mb-2">
                     Message Sent Successfully!
                   </h4>
+
                   <p className="text-green-700 font-light">
                     Thank you for your interest. Our team will contact you soon.
                   </p>
+
                   <button
                     onClick={() => setMsgSuccess(false)}
                     className="mt-6 text-sm font-medium text-green-800 hover:underline"
@@ -1048,6 +1172,7 @@ export default function PropertyDetailsPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Your Name *
                       </label>
+
                       <input
                         type="text"
                         required
@@ -1062,6 +1187,7 @@ export default function PropertyDetailsPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Email Address *
                       </label>
+
                       <input
                         type="email"
                         required
@@ -1077,6 +1203,7 @@ export default function PropertyDetailsPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Phone Number (Optional)
                     </label>
+
                     <input
                       type="tel"
                       value={msgPhone}
@@ -1090,6 +1217,7 @@ export default function PropertyDetailsPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Your Message *
                     </label>
+
                     <textarea
                       required
                       rows={4}
@@ -1134,21 +1262,31 @@ export default function PropertyDetailsPage() {
 
                 <p className="text-4xl font-bold text-[#1c3053]">
                   £{property.monthly_rent?.toLocaleString()}
-                  <span className="text-sm font-normal text-gray-500"> pcm</span>
+                  <span className="text-sm font-normal text-gray-500">
+                    {" "}
+                    pcm
+                  </span>
                 </p>
 
                 <div className="mt-4 text-xs text-gray-400 font-light">
                   Property reference:{" "}
-                  <span className="font-medium text-gray-600">{property.property_ref}</span>
+                  <span className="font-medium text-gray-600">
+                    {property.property_ref}
+                  </span>
                 </div>
               </div>
 
               {bookingConfirmed ? (
                 <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
                   <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                  <h4 className="font-semibold text-green-900 mb-1">Viewing Booked!</h4>
+
+                  <h4 className="font-semibold text-green-900 mb-1">
+                    Viewing Booked!
+                  </h4>
+
                   <p className="text-sm text-green-700 font-light">
-                    Scheduled for {selectedDate} at {selectedTime}. We will contact you shortly.
+                    Scheduled for {selectedDate} at {selectedTime}. We will
+                    contact you shortly.
                   </p>
                 </div>
               ) : (
@@ -1168,6 +1306,7 @@ export default function PropertyDetailsPage() {
                     <label className="block text-xs font-medium text-gray-700 mb-1">
                       Select Day
                     </label>
+
                     <input
                       type="date"
                       min={getLocalDateString()}
@@ -1181,6 +1320,7 @@ export default function PropertyDetailsPage() {
                     <label className="block text-xs font-medium text-gray-700 mb-1">
                       Select Time
                     </label>
+
                     {availableSlots.length === 0 ? (
                       <div className="w-full p-3 rounded-xl border border-red-200 text-sm bg-red-50 text-red-600 font-medium">
                         No slots available on this date.
@@ -1204,6 +1344,7 @@ export default function PropertyDetailsPage() {
                     <label className="block text-xs font-medium text-gray-700 mb-1">
                       Your Full Name *
                     </label>
+
                     <input
                       type="text"
                       required
@@ -1218,6 +1359,7 @@ export default function PropertyDetailsPage() {
                     <label className="block text-xs font-medium text-gray-700 mb-1">
                       Email Address *
                     </label>
+
                     <input
                       type="email"
                       required
@@ -1232,6 +1374,7 @@ export default function PropertyDetailsPage() {
                     <label className="block text-xs font-medium text-gray-700 mb-1">
                       Phone Number *
                     </label>
+
                     <input
                       type="text"
                       required
@@ -1244,7 +1387,9 @@ export default function PropertyDetailsPage() {
 
                   <button
                     type="submit"
-                    disabled={bookingLoading || availableSlots.length === 0}
+                    disabled={
+                      bookingLoading || availableSlots.length === 0
+                    }
                     className="w-full py-4 rounded-2xl font-medium text-[15px] bg-[#ae884e] text-white hover:bg-[#1c3053] disabled:bg-gray-300 transition-all shadow-lg"
                   >
                     {bookingLoading ? "Confirming..." : "Confirm Booking"}
