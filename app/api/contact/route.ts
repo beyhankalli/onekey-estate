@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getAdminEmail, newMessageEmail, sendEmail } from "@/lib/email";
+import {
+  getAdminEmail,
+  newMessageEmail,
+  sendTransactionalEmail,
+} from "@/lib/transactional-email";
 
 // In-memory rate limiter to prevent spam/abuse on the public contact form
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -71,7 +75,7 @@ export async function POST(request: Request) {
       propertyRef: propertyRef?.trim() || null,
     });
 
-    const result = await sendEmail(emailData);
+    const result = await sendTransactionalEmail(emailData);
 
     console.log("Contact email sent:", {
       id: result?.id,
