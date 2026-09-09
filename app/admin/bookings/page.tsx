@@ -101,9 +101,7 @@ function getNullableString(value: unknown): string | null {
 }
 
 function normalizeBooking(raw: RawBooking): Booking {
-  const status = isBookingStatus(raw.status)
-    ? raw.status
-    : "pending";
+  const status = isBookingStatus(raw.status) ? raw.status : "pending";
 
   const property = Array.isArray(raw.property)
     ? raw.property[0] ?? null
@@ -266,45 +264,114 @@ export default function AdminBookingsPage() {
     const supabase = createClient();
 
     try {
-      // Master v2 - Madde 17 / Madde 10: Admin Confirmation Conflict Check (Property & Agent)
-      if (newStatus === "confirmed" && currentBookingDetails) {
-        const overlapFilter =
-          `and(start_time.gte.${currentBookingDetails.start_time},start_time.lt.${currentBookingDetails.end_time}),` +
-          `and(end_time.gt.${currentBookingDetails.start_time},end_time.lte.${currentBookingDetails.end_time}),` +
-          `and(start_time.lte.${currentBookingDetails.start_time},end_time.gte.${currentBookingDetails.end_time})`;
+      let bookingToUpdate = currentBookingDetails;
 
-        // Property conflict check
-        const { data: overlappingBookings, error: overlapError } = await supabase
-          .from("bookings")
-          .select("id")
-          .eq("property_id", currentBookingDetails.property_id)
-          .eq("viewing_date", currentBookingDetails.viewing_date)
-          .in("status", ["confirmed", "pending"])
-          .neq("id", currentBookingDetails.id)
-          .or(overlapFilter);
+      /*
+       * Always re-fetch the booking immediately before a confirmation.
+       * This prevents the confirmation check from relying only on stale
+       * booking data that may have been loaded earlier.
+       */
+      if (newStatus === "confirmed") {
+        const { data: latestBookingData, error: latestBookingError } =
+          await supabase
+            .from("bookings")
+            .select(
+              "id, property_id, agent_id, viewing_date, start_time, end_time, customer_name, customer_email, customer_phone, message, internal_notes, status, created_at, updated_at, property:properties(title, property_ref), agent:agents(name)"
+            )
+            .eq("id", id)
+            .maybeSingle();
 
-        if (overlapError) throw overlapError;
+        if (latestBookingError) {
+          throw latestBookingError;
+        }
 
-        if (overlappingBookings && overlappingBookings.length > 0) {
-          alert("Conflict Warning: There is another confirmed or pending booking during this time slot for this property.");
+        if (!latestBookingData) {
+          alert("This booking could no longer be found.");
           return;
         }
 
-        // Agent conflict check (Eğer agent atanmışsa)
-        if (currentBookingDetails.agent_id) {
-          const { data: agentOverlaps, error: agentOverlapError } = await supabase
+        bookingToUpdate = normalizeBooking(
+          latestBookingData as RawBooking
+        );
+
+        if (bookingToUpdate.status !== "pending") {
+          alert(
+            `This booking is already ${bookingToUpdate.status} and cannot be confirmed.`
+          );
+          await fetchData();
+          return;
+        }
+
+        if (
+          !bookingToUpdate.property_id ||
+          !bookingToUpdate.viewing_date ||
+          !bookingToUpdate.start_time ||
+          !bookingToUpdate.end_time
+        ) {
+          alert(
+            "This booking is missing required property or viewing information."
+          );
+          return;
+        }
+
+        /*
+         * Master v2 - Admin Confirmation Conflict Check
+         *
+         * Canonical interval-overlap rule:
+         * existing.start < requested.end
+         * AND existing.end > requested.start
+         *
+         * This catches every genuine overlap, including:
+         * - existing booking containing requested slot
+         * - requested slot containing existing booking
+         * - partial overlap at either side
+         */
+        const { data: overlappingBookings, error: overlapError } =
+          await supabase
             .from("bookings")
             .select("id")
-            .eq("agent_id", currentBookingDetails.agent_id)
-            .eq("viewing_date", currentBookingDetails.viewing_date)
+            .eq("property_id", bookingToUpdate.property_id)
+            .eq("viewing_date", bookingToUpdate.viewing_date)
             .in("status", ["confirmed", "pending"])
-            .neq("id", currentBookingDetails.id)
-            .or(overlapFilter);
+            .neq("id", bookingToUpdate.id)
+            .lt("start_time", bookingToUpdate.end_time)
+            .gt("end_time", bookingToUpdate.start_time)
+            .limit(1);
 
-          if (agentOverlapError) throw agentOverlapError;
+        if (overlapError) {
+          throw overlapError;
+        }
+
+        if (overlappingBookings && overlappingBookings.length > 0) {
+          alert(
+            "Conflict Warning: There is another confirmed or pending booking during this time slot for this property."
+          );
+          await fetchData();
+          return;
+        }
+
+        if (bookingToUpdate.agent_id) {
+          const { data: agentOverlaps, error: agentOverlapError } =
+            await supabase
+              .from("bookings")
+              .select("id")
+              .eq("agent_id", bookingToUpdate.agent_id)
+              .eq("viewing_date", bookingToUpdate.viewing_date)
+              .in("status", ["confirmed", "pending"])
+              .neq("id", bookingToUpdate.id)
+              .lt("start_time", bookingToUpdate.end_time)
+              .gt("end_time", bookingToUpdate.start_time)
+              .limit(1);
+
+          if (agentOverlapError) {
+            throw agentOverlapError;
+          }
 
           if (agentOverlaps && agentOverlaps.length > 0) {
-            alert("Conflict Warning: The assigned agent already has another viewing scheduled during this time slot.");
+            alert(
+              "Conflict Warning: The assigned agent already has another viewing scheduled during this time slot."
+            );
+            await fetchData();
             return;
           }
         }
@@ -352,8 +419,10 @@ export default function AdminBookingsPage() {
       }
 
       await fetchData();
-    } catch (error: any) {
-      alert("Error confirming booking: " + error.message);
+    } catch (error: unknown) {
+      alert(
+        "Error updating booking: " + getErrorMessage(error)
+      );
     } finally {
       setUpdatingId(null);
     }
@@ -401,45 +470,95 @@ export default function AdminBookingsPage() {
     try {
       const supabase = createClient();
 
-      const overlapFilter =
-        `and(start_time.gte.${editStartTime},start_time.lt.${editEndTime}),` +
-        `and(end_time.gt.${editStartTime},end_time.lte.${editEndTime}),` +
-        `and(start_time.lte.${editStartTime},end_time.gte.${editEndTime})`;
+      /*
+       * Re-fetch the booking immediately before editing so the conflict
+       * check is based on the latest database state rather than stale UI data.
+       */
+      const { data: latestBookingData, error: latestBookingError } =
+        await supabase
+          .from("bookings")
+          .select(
+            "id, property_id, agent_id, viewing_date, start_time, end_time, customer_name, customer_email, customer_phone, message, internal_notes, status, created_at, updated_at"
+          )
+          .eq("id", editingBooking.id)
+          .maybeSingle();
 
-      // Master v2 - Madde 16 / Madde 10: Admin Reschedule Conflict Check (Property & Agent)
-      const { data: overlappingBookings, error: overlapError } = await supabase
-        .from("bookings")
-        .select("id")
-        .eq("property_id", editingBooking.property_id)
-        .eq("viewing_date", editDate)
-        .in("status", ["confirmed", "pending"])
-        .neq("id", editingBooking.id)
-        .or(overlapFilter);
+      if (latestBookingError) {
+        throw latestBookingError;
+      }
 
-      if (overlapError) throw overlapError;
-
-      if (overlappingBookings && overlappingBookings.length > 0) {
-        alert("Conflict Warning: The selected time slot overlaps with another booking for this property.");
-        setSavingEdit(false);
+      if (!latestBookingData) {
+        alert("This booking could no longer be found.");
         return;
       }
 
-      // Agent conflict check during edit/reschedule
-      if (editAgentId) {
-        const { data: agentOverlaps, error: agentOverlapError } = await supabase
+      const latestBooking = normalizeBooking(
+        latestBookingData as RawBooking
+      );
+
+      if (
+        latestBooking.status !== "pending" &&
+        latestBooking.status !== "confirmed"
+      ) {
+        alert(
+          `This booking is ${latestBooking.status} and can no longer be rescheduled.`
+        );
+        await fetchData();
+        closeEditBooking();
+        return;
+      }
+
+      if (!latestBooking.property_id) {
+        alert("This booking has no assigned property.");
+        return;
+      }
+
+      const { data: overlappingBookings, error: overlapError } =
+        await supabase
           .from("bookings")
           .select("id")
-          .eq("agent_id", editAgentId)
+          .eq("property_id", latestBooking.property_id)
           .eq("viewing_date", editDate)
           .in("status", ["confirmed", "pending"])
-          .neq("id", editingBooking.id)
-          .or(overlapFilter);
+          .neq("id", latestBooking.id)
+          .lt("start_time", editEndTime)
+          .gt("end_time", editStartTime)
+          .limit(1);
 
-        if (agentOverlapError) throw agentOverlapError;
+      if (overlapError) {
+        throw overlapError;
+      }
+
+      if (overlappingBookings && overlappingBookings.length > 0) {
+        alert(
+          "Conflict Warning: The selected time slot overlaps with another booking for this property."
+        );
+        await fetchData();
+        return;
+      }
+
+      if (editAgentId) {
+        const { data: agentOverlaps, error: agentOverlapError } =
+          await supabase
+            .from("bookings")
+            .select("id")
+            .eq("agent_id", editAgentId)
+            .eq("viewing_date", editDate)
+            .in("status", ["confirmed", "pending"])
+            .neq("id", latestBooking.id)
+            .lt("start_time", editEndTime)
+            .gt("end_time", editStartTime)
+            .limit(1);
+
+        if (agentOverlapError) {
+          throw agentOverlapError;
+        }
 
         if (agentOverlaps && agentOverlaps.length > 0) {
-          alert("Conflict Warning: The selected agent already has another viewing scheduled during this time slot.");
-          setSavingEdit(false);
+          alert(
+            "Conflict Warning: The selected agent already has another viewing scheduled during this time slot."
+          );
+          await fetchData();
           return;
         }
       }
@@ -454,7 +573,7 @@ export default function AdminBookingsPage() {
           internal_notes: editNotes.trim() || null,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", editingBooking.id);
+        .eq("id", latestBooking.id);
 
       if (error) {
         alert("Error updating booking: " + error.message);
@@ -463,8 +582,10 @@ export default function AdminBookingsPage() {
 
       closeEditBooking();
       await fetchData();
-    } catch (error: any) {
-      alert("Error saving booking: " + error.message);
+    } catch (error: unknown) {
+      alert(
+        "Error saving booking: " + getErrorMessage(error)
+      );
     } finally {
       setSavingEdit(false);
     }
