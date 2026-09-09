@@ -30,15 +30,15 @@ export default function CustomerDocumentsPage() {
   const [documents, setDocuments] = useState<CustomerDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  
   const [category, setCategory] = useState("Passport");
   const [customCategory, setCustomCategory] = useState("");
   const [documentNumber, setDocumentNumber] = useState("");
   const [fullName, setFullName] = useState("");
   const [shareCode, setShareCode] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(
-    null
-  );
+  const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -57,10 +57,26 @@ export default function CustomerDocumentsPage() {
           return;
         }
 
+        // 1. Önce müşterinin veritabanındaki gerçek ID'sini (customer.id) buluyoruz.
+        const { data: customerData, error: customerError } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("auth_user_id", user.id)
+          .single();
+
+        if (customerError || !customerData) {
+          console.error("Customer profile not found");
+          return;
+        }
+
+        const actualCustomerId = customerData.id;
+        setCustomerId(actualCustomerId);
+
+        // 2. Belgeleri Auth ID ile değil, gerçek Customer ID ile çekiyoruz.
         const { data, error } = await supabase
           .from("customer_documents")
           .select("*")
-          .eq("customer_id", user.id)
+          .eq("customer_id", actualCustomerId)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -86,6 +102,11 @@ export default function CustomerDocumentsPage() {
       return;
     }
 
+    if (!customerId) {
+      alert("Customer profile not found. Unable to upload.");
+      return;
+    }
+
     const finalCategory =
       category === "Other"
         ? customCategory.trim() || "Other"
@@ -96,16 +117,9 @@ export default function CustomerDocumentsPage() {
     const supabase = createClient();
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        throw new Error("Unauthorized");
-      }
-
       const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      // Storage klasör yapısını da gerçek Customer ID'ye göre düzenliyoruz.
+      const fileName = `${customerId}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("customer-documents")
@@ -115,10 +129,11 @@ export default function CustomerDocumentsPage() {
         throw uploadError;
       }
 
+      // Veritabanına kaydederken Auth ID yerine Customer ID yazıyoruz.
       const { data: newDoc, error: dbError } = await supabase
         .from("customer_documents")
         .insert({
-          customer_id: user.id,
+          customer_id: customerId,
           category: finalCategory,
           document_number: documentNumber,
           full_name: fullName,

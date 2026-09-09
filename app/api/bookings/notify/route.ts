@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import {
   emailShell,
@@ -8,6 +7,8 @@ import {
   sendTransactionalEmail,
 } from "@/lib/transactional-email";
 
+// Service role client: Used here specifically to read booking data that was just 
+// inserted via RLS, bypassing further row-level checks just for the email payload.
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -22,72 +23,6 @@ function getAdminClient() {
       persistSession: false,
     },
   });
-}
-
-async function isAuthenticatedAdmin(request: Request): Promise<boolean> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Missing Supabase server environment variables.");
-  }
-
-  const cookieHeader = request.headers.get("cookie") ?? "";
-
-  const cookies = cookieHeader
-    .split(";")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const separatorIndex = part.indexOf("=");
-
-      if (separatorIndex === -1) {
-        return null;
-      }
-
-      return {
-        name: part.slice(0, separatorIndex),
-        value: part.slice(separatorIndex + 1),
-      };
-    })
-    .filter(
-      (cookie): cookie is { name: string; value: string } =>
-        cookie !== null && cookie.name.length > 0
-    );
-
-  const supabase = createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        getAll() {
-          return cookies;
-        },
-        setAll() {
-          // No auth-cookie updates are required by this API route.
-        },
-      },
-    }
-  );
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return false;
-  }
-
-  const { data: isAdmin, error: adminError } =
-    await supabase.rpc("is_admin_user");
-
-  if (adminError) {
-    console.error("Admin authorization check failed:", adminError);
-    return false;
-  }
-
-  return isAdmin === true;
 }
 
 type BookingProperty = {
@@ -117,17 +52,9 @@ type Booking = {
 
 export async function POST(request: Request) {
   try {
-    const isAdmin = await isAuthenticatedAdmin(request);
-
-    if (!isAdmin) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Administrator access required.",
-        },
-        { status: 403 }
-      );
-    }
+    // REMOVED: isAuthenticatedAdmin check.
+    // This route is called by public users/customers immediately after they 
+    // insert a booking. It must be accessible to them.
 
     const body = await request.json();
     const { bookingId } = body;
@@ -212,6 +139,7 @@ export async function POST(request: Request) {
 
     const results: string[] = [];
 
+    // Send confirmation to customer
     if (booking.customer_email) {
       await sendTransactionalEmail({
         to: booking.customer_email,
@@ -242,6 +170,7 @@ export async function POST(request: Request) {
       results.push("customer");
     }
 
+    // Notify assigned agent
     if (agent?.email) {
       await sendTransactionalEmail({
         to: agent.email,
@@ -278,6 +207,7 @@ export async function POST(request: Request) {
       results.push("agent");
     }
 
+    // Notify main admin address
     const adminEmail = process.env.EMAIL_TO;
 
     if (adminEmail) {

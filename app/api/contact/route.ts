@@ -14,19 +14,23 @@ export async function POST(request: Request) {
       propertyRef,
     } = body;
 
-    if (!name?.trim() || !email?.trim() || !message?.trim()) {
+    // En az bir iletişim yöntemi (email veya phone) ve name ile message zorunlu kılndı
+    if (!name?.trim() || !message?.trim() || (!email?.trim() && !phone?.trim())) {
       return NextResponse.json(
         {
           success: false,
-          error: "Name, email and message are required.",
+          error: "Name, message, and at least one contact method (email or phone) are required.",
         },
         { status: 400 }
       );
     }
 
+    // Eğer kullanıcı email girmediyse, transactional mail fonksiyonu için fallback email tanımlanır
+    const contactEmail = email?.trim() || "no-email@onekey.co.uk";
+
     const emailData = newMessageEmail({
       senderName: name.trim(),
-      senderEmail: email.trim(),
+      senderEmail: contactEmail,
       senderPhone: phone?.trim() || null,
       message: message.trim(),
       propertyTitle: propertyTitle?.trim() || null,

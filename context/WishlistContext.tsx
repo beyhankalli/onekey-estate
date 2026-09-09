@@ -17,11 +17,20 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
 
   // Sayfa ilk açıldığında tarayıcı hafızasından (LocalStorage) eski favorileri yükle
   useEffect(() => {
-    const storedWishlist = localStorage.getItem("onekey_wishlist");
-    if (storedWishlist) {
-      setWishlist(JSON.parse(storedWishlist));
+    try {
+      const storedWishlist = localStorage.getItem("onekey_wishlist");
+      if (storedWishlist) {
+        const parsed = JSON.parse(storedWishlist);
+        if (Array.isArray(parsed)) {
+          setWishlist(parsed.filter((item): item is string => typeof item === "string"));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load wishlist from localStorage:", error);
+      localStorage.removeItem("onekey_wishlist");
+    } finally {
+      setIsLoaded(true);
     }
-    setIsLoaded(true);
   }, []);
 
   // Kullanıcı kalp butonuna bastığında çalışacak fonksiyon
@@ -33,7 +42,12 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
         : [...prev, id];
       
       // Yeni listeyi tarayıcı hafızasına kaydet
-      localStorage.setItem("onekey_wishlist", JSON.stringify(updatedWishlist));
+      try {
+        localStorage.setItem("onekey_wishlist", JSON.stringify(updatedWishlist));
+      } catch (error) {
+        console.error("Failed to save wishlist to localStorage:", error);
+      }
+
       return updatedWishlist;
     });
   };

@@ -22,6 +22,7 @@ async function getProperties(): Promise<Property[]> {
   const query = new URLSearchParams({
     select: "id,created_at,updated_at",
     availability_status: "neq.let_agreed",
+    status: "eq.Published",
     order: "created_at.desc",
   });
 

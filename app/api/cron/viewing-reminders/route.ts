@@ -97,7 +97,7 @@ export async function GET(request: Request) {
         agent:agents(name, email)
       `)
       .eq("viewing_date", tomorrow)
-      .in("status", ["pending", "confirmed"]);
+      .eq("status", "confirmed");
 
     if (error) {
       throw error;

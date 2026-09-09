@@ -1,13 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+// Simple in-memory rate limiter to protect Gemini API quota.
+// Note: In serverless (Vercel), this memory is isolated per-instance and clears 
+// on cold starts, but it's enough to stop a basic single-instance spam loop.
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX_REQUESTS = 10;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+
+function applyRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
 type Property = {
   id: string;
   title: string | null;
   property_ref: string | null;
   short_location: string | null;
-  full_address: string | null;
-  postcode: string | null;
+  // full_address and postcode purposely omitted from the AI context to protect privacy
   monthly_rent: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
@@ -47,8 +70,7 @@ function formatProperty(property: Property) {
     title: property.title,
     reference: property.property_ref,
     location: property.short_location,
-    address: property.full_address,
-    postcode: property.postcode,
+    // explicitly NOT sending full_address or postcode to the LLM
     rent_pcm: property.monthly_rent,
     bedrooms: property.bedrooms,
     bathrooms: property.bathrooms,
@@ -95,6 +117,15 @@ function removePropertyMarker(text: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Rate Limiting Check
+    const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
+    if (!applyRateLimit(ip)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a minute before sending another message." },
+        { status: 429 }
+      );
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -108,7 +139,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-
     const message = cleanText(body?.message, 1200);
 
     if (!message) {
@@ -144,6 +174,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
+    // 2. Fetch properties but exclude full_address and postcode at the query level
     const { data: properties, error: propertiesError } = await supabase
       .from("properties")
       .select(
@@ -152,8 +183,6 @@ export async function POST(request: NextRequest) {
         title,
         property_ref,
         short_location,
-        full_address,
-        postcode,
         monthly_rent,
         bedrooms,
         bathrooms,
@@ -175,11 +204,10 @@ export async function POST(request: NextRequest) {
       `
       )
       .order("created_at", { ascending: false })
-      .limit(150);
+      .limit(100); // Reduced limit from 150 to 100 to save AI token cost and stay within reliable context windows
 
     if (propertiesError) {
       console.error("Property catalogue error:", propertiesError);
-
       return NextResponse.json(
         { error: "Unable to load property catalogue." },
         { status: 500 }
@@ -280,7 +308,6 @@ ${currentContext}
 
     if (!response.ok) {
       const errorText = await response.text();
-
       console.error("Gemini API error:", errorText);
 
       return NextResponse.json(
@@ -313,9 +340,10 @@ ${currentContext}
     const recommendedIds = extractPropertyIds(generatedText);
     const answer = removePropertyMarker(generatedText);
 
+    // Filter server-side to ensure the AI didn't hallucinate an ID of an unavailable property
     const recommendedProperties = recommendedIds
       .map((id) =>
-        allProperties.find((property) => String(property.id) === String(id))
+        availableProperties.find((property) => String(property.id) === String(id))
       )
       .filter(Boolean)
       .map((property) => formatProperty(property as Property));

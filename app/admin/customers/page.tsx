@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import {
   ArrowRight,
   Filter,
   Hash,
+  RefreshCw,
 } from "lucide-react";
 
 interface Customer {
@@ -84,25 +85,34 @@ export default function AdminCustomersPage() {
     }
   };
 
-  const filteredCustomers = customers.filter((customer) => {
-    const query = searchQuery.toLowerCase();
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((customer) => {
+      const query = searchQuery.trim().toLowerCase();
 
-    const matchesSearch =
-      customer.account_number?.toLowerCase().includes(query) ||
-      customer.name?.toLowerCase().includes(query) ||
-      customer.email?.toLowerCase().includes(query) ||
-      customer.phone?.toLowerCase().includes(query);
+      const matchesSearch =
+        !query ||
+        customer.account_number?.toLowerCase().includes(query) ||
+        customer.name?.toLowerCase().includes(query) ||
+        customer.email?.toLowerCase().includes(query) ||
+        customer.phone?.toLowerCase().includes(query);
 
-    const matchesStatus =
-      statusFilter === "all" || customer.lead_status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        customer.lead_status?.toLowerCase() === statusFilter.toLowerCase();
 
-    return matchesSearch && matchesStatus;
-  });
+      return matchesSearch && matchesStatus;
+    });
+  }, [customers, searchQuery, statusFilter]);
 
   if (loading) {
     return (
-      <div className="p-8 text-center text-gray-500">
-        Loading customers & leads...
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-7 h-7 text-[#1c3053] animate-spin mx-auto" />
+          <p className="mt-3 text-sm text-gray-500">
+            Loading customers & leads...
+          </p>
+        </div>
       </div>
     );
   }
@@ -200,7 +210,7 @@ export default function AdminCustomersPage() {
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gray-900">
-                            {customer.name}
+                            {customer.name || "Unnamed customer"}
                           </span>
 
                           {customer.account_number && (
@@ -221,7 +231,7 @@ export default function AdminCustomersPage() {
                       <td className="py-4 px-6">
                         <div className="text-gray-900 flex items-center gap-1.5">
                           <Mail className="w-3.5 h-3.5 text-gray-400" />
-                          {customer.email}
+                          {customer.email || "N/A"}
                         </div>
 
                         <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
@@ -257,9 +267,9 @@ export default function AdminCustomersPage() {
                       </td>
 
                       <td className="py-4 px-6 text-gray-500 text-xs">
-                        {new Date(customer.created_at).toLocaleDateString(
-                          "en-GB"
-                        )}
+                        {customer.created_at
+                          ? new Date(customer.created_at).toLocaleDateString("en-GB")
+                          : "N/A"}
                       </td>
 
                       <td className="py-4 px-6 text-right">

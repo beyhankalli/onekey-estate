@@ -276,34 +276,6 @@ export default function CustomerProfilePage() {
     bedrooms: "",
   });
 
-  const fetchFullCustomerProfile = async () => {
-    if (!customerId) {
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const data = await loadCustomerProfileData(customerId);
-
-      setCustomer(data.customer);
-      setBookings(data.bookings);
-      setMessages(data.messages);
-      setDocuments(data.documents);
-      setPaymentRecords(data.paymentRecords);
-      setDocFullName(data.customer.name || "");
-      setAdminNotes(data.customer.notes || "");
-    } catch (error: unknown) {
-      console.error("Error loading customer profile:", error);
-      alert(
-        "Failed to load customer profile: " +
-          getErrorMessage(error)
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     let isMounted = true;
 
@@ -2017,7 +1989,7 @@ export default function CustomerProfilePage() {
                   <button
                     type="submit"
                     disabled={uploading}
-                    className="px-4 py-1.5 bg-[#1c3053] text-white text-xs rounded-lg hover:bg-[#ae884gold] disabled:bg-gray-400 font-medium"
+                    className="px-4 py-1.5 bg-[#1c3053] text-white text-xs rounded-lg hover:bg-[#ae884e] disabled:bg-gray-400 font-medium"
                   >
                     {uploading
                       ? "Uploading..."

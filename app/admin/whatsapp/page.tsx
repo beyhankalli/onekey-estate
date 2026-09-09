@@ -93,11 +93,10 @@ function normalizePhone(phone: string) {
     value = value.slice(2);
   }
 
+  // If it starts with 07 (UK mobile), convert to 447
   if (value.startsWith("07")) {
     value = `44${value.slice(1)}`;
-  }
-
-  if (value.startsWith("7") && value.length === 10) {
+  } else if (value.startsWith("7") && value.length === 10) {
     value = `44${value}`;
   }
 
@@ -700,7 +699,9 @@ export default function AdminWhatsAppPage() {
                           </p>
 
                           <a
-                            href={`https://wa.me/${log.phone_number}?text=${encodeURIComponent(
+                            href={`https://wa.me/${normalizePhone(
+                              log.phone_number
+                            )}?text=${encodeURIComponent(
                               log.message
                             )}`}
                             target="_blank"

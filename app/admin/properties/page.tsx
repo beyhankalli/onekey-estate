@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Trash2, Edit, Home } from "lucide-react";
+import { Plus, Trash2, Edit, Home, RefreshCw } from "lucide-react";
 
 interface PropertyWithAgent {
   id: string;
@@ -25,18 +25,22 @@ export default function AdminPropertiesPage() {
   const fetchProperties = async () => {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("properties")
-      .select("*, agents(name)")
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("*, agents(name)")
+        .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setProperties(data as PropertyWithAgent[]);
-    } else if (error) {
+      if (error) throw error;
+
+      if (data) {
+        setProperties(data as PropertyWithAgent[]);
+      }
+    } catch (error: any) {
       console.error("Error fetching properties:", error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -46,24 +50,33 @@ export default function AdminPropertiesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this property?")) return;
 
-    const { error } = await supabase.from("properties").delete().eq("id", id);
+    try {
+      const { error } = await supabase.from("properties").delete().eq("id", id);
 
-    if (!error) {
+      if (error) throw error;
+
       setProperties((currentProperties) =>
         currentProperties.filter((property) => property.id !== id)
       );
-    } else {
+    } catch (error: any) {
       alert("Error deleting property: " + error.message);
     }
   };
 
   if (loading) {
-    return <div className="text-gray-500">Loading properties...</div>;
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-7 h-7 text-[#1c3053] animate-spin mx-auto" />
+          <p className="mt-3 text-sm text-gray-500">Loading properties...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
+    <div className="max-w-6xl mx-auto space-y-8 pb-12">
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-semibold text-gray-900">
             Property Management
@@ -103,7 +116,7 @@ export default function AdminPropertiesPage() {
               {properties.map((property) => (
                 <tr
                   key={property.id}
-                  className="hover:bg-gray-50/80 transition-colors"
+                  className="hover:bg-gray-50/85 transition-colors"
                 >
                   <td className="p-5 font-medium text-gray-900 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-[#1c3053] shrink-0">
@@ -113,12 +126,12 @@ export default function AdminPropertiesPage() {
                     <div>
                       <p>{property.title}</p>
                       <span className="text-xs text-gray-400 font-light">
-                        Ref: {property.property_ref}
+                        Ref: {property.property_ref || "N/A"}
                       </span>
                     </div>
                   </td>
 
-                  <td className="p-5">{property.short_location}</td>
+                  <td className="p-5">{property.short_location || "—"}</td>
 
                   <td className="p-5 font-medium text-gray-900">
                     £{property.monthly_rent?.toLocaleString() ?? "—"} pcm
@@ -146,6 +159,7 @@ export default function AdminPropertiesPage() {
                     </Link>
 
                     <button
+                      type="button"
                       onClick={() => handleDelete(property.id)}
                       className="inline-flex p-2 rounded-lg bg-gray-50 text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all"
                       title="Delete Property"

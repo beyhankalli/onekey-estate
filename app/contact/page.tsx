@@ -89,6 +89,7 @@ export default function ContactPage() {
     setIsSending(true);
 
     try {
+      // 1. Önce veritabanına kayıt atıyoruz
       const { error: dbError } = await supabase
         .from("contact_messages")
         .insert([
@@ -102,7 +103,8 @@ export default function ContactPage() {
 
       if (dbError) throw dbError;
 
-      await fetch("/api/contact", {
+      // 2. Mail API'sini çağırıyoruz ve yanıtı kontrol ediyoruz
+      const response = await fetch("/api/contact", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -110,12 +112,17 @@ export default function ContactPage() {
         body: JSON.stringify(formData),
       });
 
-      setSubmitted(true);
-    } catch (err) {
-      setGeneralError(
-        "An error occurred while sending your message. Please try again later."
-      );
+      const data = await response.json();
 
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to send email notification.");
+      }
+
+      setSubmitted(true);
+    } catch (err: any) {
+      setGeneralError(
+        err?.message || "An error occurred while sending your message. Please try again later."
+      );
       console.error(err);
     } finally {
       setIsSending(false);
@@ -277,7 +284,7 @@ export default function ContactPage() {
                   </div>
 
                   <p className="text-xs font-light text-gray-500">
-                    * Please provide at least one valid contact method (Email or
+                    * Please provide at least one contact method (Email or
                     Phone).
                   </p>
                 </div>
