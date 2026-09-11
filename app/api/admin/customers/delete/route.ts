@@ -38,11 +38,26 @@ export async function DELETE(request: Request) {
       },
     });
 
-    // 4. Önce Auth Kullanıcısını Sil (Eğer bağlı bir Auth hesabı varsa)
+    // 4. Storage üzerindeki customer-documents klasöründen müşteri dosyalarını temizle
+    try {
+      const { data: filesList, error: listError } = await supabaseAdmin.storage
+        .from("customer-documents")
+        .list(customerId);
+
+      if (!listError && filesList && filesList.length > 0) {
+        const filePaths = filesList.map((file) => `${customerId}/${file.name}`);
+        await supabaseAdmin.storage
+          .from("customer-documents")
+          .remove(filePaths);
+      }
+    } catch (storageErr) {
+      console.error("Error deleting customer storage files:", storageErr);
+    }
+
+    // 5. Önce Auth Kullanıcısını Sil (Eğer bağlı bir Auth hesabı varsa)
     if (authUserId) {
       const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
       
-      // Eğer Auth silinirken hata çıkarsa işlemi durdur (Orphan kayıt oluşmasını engellemek için)
       if (authDeleteError) {
         console.error("Auth user deletion error:", authDeleteError);
         return NextResponse.json(
@@ -52,7 +67,7 @@ export async function DELETE(request: Request) {
       }
     }
 
-    // 5. Müşteri Tablosundaki Kaydı Sil
+    // 6. Müşteri Tablosundaki Kaydı Sil
     const { error: customerDeleteError } = await supabaseAdmin
       .from("customers")
       .delete()
@@ -66,10 +81,10 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // 6. Başarılı yanıt dön
+    // 7. Başarılı yanıt dön
     return NextResponse.json({ 
       success: true, 
-      message: "Customer record and Auth account permanently deleted." 
+      message: "Customer record, Auth account, and storage files permanently deleted." 
     });
 
   } catch (error: any) {
