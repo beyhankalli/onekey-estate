@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://onekey-estate.vercel.app";
+  "https://onekeyagency.co.uk";
 
 export default function robots(): MetadataRoute.Robots {
   return {
