@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://onekey-estate.vercel.app";
+  "https://onekeyagency.co.uk";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
