@@ -20,45 +20,45 @@ import { createClient } from "@/lib/supabase/client";
 
 import {
 
-  ArrowLeft,
+  ArrowLeft,
 
-  MapPin,
+  MapPin,
 
-  Bed,
+  Bed,
 
-  Bath,
+  Bath,
 
-  Calendar,
+  Calendar,
 
-  CheckCircle,
+  CheckCircle,
 
-  Share2,
+  Share2,
 
-  Check,
+  Check,
 
-  X,
+  X,
 
-  ChevronLeft,
+  ChevronLeft,
 
-  ChevronRight,
+  ChevronRight,
 
-  Maximize2,
+  Maximize2,
 
-  Phone,
+  Phone,
 
-  Mail,
+  Mail,
 
-  MessageCircle,
+  MessageCircle,
 
-  Heart,
+  Heart,
 
-  Send,
+  Send,
 
-  Box,
+  Box,
 
-  Globe,
+  Globe,
 
-  ExternalLink,
+  ExternalLink,
 
 } from "lucide-react";
 
@@ -70,21 +70,21 @@ import { useWishlist } from "@/context/WishlistContext";
 
 interface Agent {
 
-  id: string;
+  id: string;
 
-  name: string;
+  name: string;
 
-  bio?: string | null;
+  bio?: string | null;
 
-  phone?: string | null;
+  phone?: string | null;
 
-  email?: string | null;
+  email?: string | null;
 
-  whatsapp?: string | null;
+  whatsapp?: string | null;
 
-  photo?: string | null;
+  photo?: string | null;
 
-  avatar_url?: string | null;
+  avatar_url?: string | null;
 
 }
 
@@ -92,77 +92,77 @@ interface Agent {
 
 interface Property {
 
-  id: string;
+  id: string;
 
-  title: string;
+  title: string;
 
-  property_ref: string;
+  property_ref: string;
 
-  full_address: string;
+  full_address: string;
 
-  short_location: string;
+  short_location: string;
 
-  postcode: string;
+  postcode: string;
 
-  monthly_rent: number;
+  monthly_rent: number;
 
-  deposit: number;
+  deposit: number;
 
-  bedrooms: number;
+  bedrooms: number;
 
-  bathrooms: number;
+  bathrooms: number;
 
-  description: string;
+  description: string;
 
-  availability_status: string;
+  availability_status: string;
 
-  bills_included: boolean;
+  bills_included: boolean;
 
-  dss_lha_covers_rent: boolean;
+  dss_lha_covers_rent: boolean;
 
-  broadband_info?: string | null;
+  broadband_info?: string | null;
 
-  available_from?: string | null;
+  available_from?: string | null;
 
-  preferred_min_tenancy?: string | null;
+  preferred_min_tenancy?: string | null;
 
-  online_viewings: boolean;
+  online_viewings: boolean;
 
-  student_friendly: boolean;
+  student_friendly: boolean;
 
-  families_allowed: boolean;
+  families_allowed: boolean;
 
-  pets_allowed: boolean;
+  pets_allowed: boolean;
 
-  smokers_allowed: boolean;
+  smokers_allowed: boolean;
 
-  garden: boolean;
+  garden: boolean;
 
-  parking: boolean;
+  parking: boolean;
 
-  fireplace: boolean;
+  fireplace: boolean;
 
-  furnishing_status: string;
+  furnishing_status: string;
 
-  epc_rating?: string | null;
+  epc_rating?: string | null;
 
-  council_tax_band?: string | null;
+  council_tax_band?: string | null;
 
-  heating_type?: string | null;
+  heating_type?: string | null;
 
-  tenure?: string | null;
+  tenure?: string | null;
 
-  minimum_tenancy?: number | null;
+  minimum_tenancy?: number | null;
 
-  floor_plan_2d?: string | null;
+  floor_plan_2d?: string | null;
 
-  model_3d_url?: string | null;
+  model_3d_url?: string | null;
 
-  has_3d_model: boolean;
+  has_3d_model: boolean;
 
-  virtual_tour_url?: string | null;
+  virtual_tour_url?: string | null;
 
-  agents?: Agent | null;
+  agents?: Agent | null;
 
 }
 
@@ -172,15 +172,15 @@ interface Property {
 
 const getLocalDateString = () => {
 
-  const d = new Date();
+  const d = new Date();
 
-  const year = d.getFullYear();
+  const year = d.getFullYear();
 
-  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
 
-  const day = String(d.getDate()).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
 
-  return \`${year}-${month}-${day}\`;
+  return `${year}-${month}-${day}`;
 
 };
 
@@ -188,468 +188,467 @@ const getLocalDateString = () => {
 
 export default function PropertyDetailsPage() {
 
-  const params = useParams();
+  const params = useParams();
 
-  const router = useRouter();
+  const router = useRouter();
 
-  const id = params.id as string;
+  const id = params.id as string;
 
 
 
-  const { toggleWishlist, isInWishlist } = useWishlist();
+  const { toggleWishlist, isInWishlist } = useWishlist();
 
-  const isSaved = isInWishlist(id);
+  const isSaved = isInWishlist(id);
 
 
 
-  const [property, setProperty] = useState\<Property | null>(null);
+  const [property, setProperty] = useState<Property | null>(null);
 
-  const [interiorImages, setInteriorImages] = useState\<string[]>([]);
+  const [interiorImages, setInteriorImages] = useState<string[]>([]);
 
-  const [exteriorImages, setExteriorImages] = useState\<string[]>([]);
+  const [exteriorImages, setExteriorImages] = useState<string[]>([]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState\<string>("interior");
+  const [activeTab, setActiveTab] = useState<string>("interior");
 
-  const [currentIndex, setCurrentIndex] = useState\<number>(0);
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
 
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const [selectedDate, setSelectedDate] = useState\<string>(getLocalDateString());
+  const [selectedDate, setSelectedDate] = useState<string>(getLocalDateString());
 
-  const [selectedTime, setSelectedTime] = useState\<string>("");
+  const [selectedTime, setSelectedTime] = useState<string>("");
 
-  const [userName, setUserName] = useState("");
+  const [userName, setUserName] = useState("");
 
-  const [userPhone, setUserPhone] = useState("");
+  const [userPhone, setUserPhone] = useState("");
 
-  const [userEmail, setUserEmail] = useState("");
+  const [userEmail, setUserEmail] = useState("");
 
-  const [bookingConfirmed, setBookingConfirmed] = useState(false);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
 
-  const [availableSlots, setAvailableSlots] = useState\<string[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
-  const [bookingError, setBookingError] = useState("");
+  const [bookingError, setBookingError] = useState("");
 
-  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
-  const [msgName, setMsgName] = useState("");
+  const [msgName, setMsgName] = useState("");
 
-  const [msgEmail, setMsgEmail] = useState("");
+  const [msgEmail, setMsgEmail] = useState("");
 
-  const [msgPhone, setMsgPhone] = useState("");
+  const [msgPhone, setMsgPhone] = useState("");
 
-  const [msgText, setMsgText] = useState("");
+  const [msgText, setMsgText] = useState("");
 
-  const [msgLoading, setMsgLoading] = useState(false);
+  const [msgLoading, setMsgLoading] = useState(false);
 
-  const [msgSuccess, setMsgSuccess] = useState(false);
+  const [msgSuccess, setMsgSuccess] = useState(false);
 
-  const [msgError, setMsgError] = useState("");
+  const [msgError, setMsgError] = useState("");
 
 
 
-  useEffect(() => {
+  useEffect(() => {
 
-    let cancelled = false;
+    let cancelled = false;
 
 
 
-    async function fetchProperty() {
+    async function fetchProperty() {
 
-      const supabase = createClient();
+      const supabase = createClient();
 
 
 
-      const { data: propData, error: propError } = await supabase
+      const { data: propData, error: propError } = await supabase
 
-        .from("properties")
+        .from("properties")
 
-        .select("\*, agents(\*)")
+        .select("*, agents(*)")
 
-        .eq("id", id)
+        .eq("id", id)
 
-        .eq("status", "Published")
+        .eq("status", "Published")
 
-        .single();
+        .single();
 
 
 
-      if (cancelled) return;
+      if (cancelled) return;
 
 
 
-      if (propError || !propData) {
+      if (propError || !propData) {
 
-        router.push("/listings");
+        router.push("/listings");
 
-        return;
+        return;
 
-      }
+      }
 
 
 
-      setProperty(propData as Property);
+      setProperty(propData as Property);
 
 
 
-      const { data: imgData } = await supabase
+      const { data: imgData } = await supabase
 
-        .from("property_images")
+        .from("property_images")
 
-        .select("\*")
+        .select("*")
 
-        .eq("property_id", id)
+        .eq("property_id", id)
 
-        .order("display_order", { ascending: true });
+        .order("display_order", { ascending: true });
 
 
 
-      if (cancelled) return;
+      if (cancelled) return;
 
 
 
-      if (imgData) {
+      if (imgData) {
 
-        setInteriorImages(
+        setInteriorImages(
 
-          imgData
+          imgData
 
-            .filter((img) => img.image_type === "interior")
+            .filter((img) => img.image_type === "interior")
 
-            .map((img) => img.url as string)
+            .map((img) => img.url as string)
 
-        );
+        );
 
 
 
-        setExteriorImages(
+        setExteriorImages(
 
-          imgData
+          imgData
 
-            .filter((img) => img.image_type === "exterior")
+            .filter((img) => img.image_type === "exterior")
 
-            .map((img) => img.url as string)
+            .map((img) => img.url as string)
 
-        );
+        );
 
-      }
+      }
 
 
 
-      setLoading(false);
+      setLoading(false);
 
-    }
+    }
 
 
 
-    if (id) {
+    if (id) {
 
-      fetchProperty();
+      fetchProperty();
 
-    }
+    }
 
 
 
-    return () => {
+    return () => {
 
-      cancelled = true;
+      cancelled = true;
 
-    };
+    };
 
-  }, [id, router]);
+  }, [id, router]);
 
 
 
-  useEffect(() => {
+  useEffect(() => {
 
-    let cancelled = false;
+    let cancelled = false;
 
 
 
-    async function calculateAvailability() {
+    async function calculateAvailability() {
 
-      if (!property?.agents?.id || !selectedDate) {
+      if (!property?.agents?.id || !selectedDate) {
 
-        return;
+        return;
 
-      }
+      }
 
 
 
-      const supabase = createClient();
+      const supabase = createClient();
 
 
 
-      setBookingError("");
+      setBookingError("");
 
 
 
-      // Madde 18: Geçmiş tarih kontrolü
+      // Madde 18: Geçmiş tarih kontrolü
 
-      const todayStr = getLocalDateString();
+      const todayStr = getLocalDateString();
 
 
 
-      if (selectedDate < todayStr) {
+      if (selectedDate < todayStr) {
 
-        setAvailableSlots([]);
+        setAvailableSlots([]);
 
-        setSelectedTime("");
+        setSelectedTime("");
 
-        setBookingError("You cannot schedule a viewing for a past date.");
+        setBookingError("You cannot schedule a viewing for a past date.");
 
-        return;
+        return;
 
-      }
+      }
 
 
 
-      const dateObj = new Date(\`${selectedDate}T00:00:00\`);
+      const dateObj = new Date(`${selectedDate}T00:00:00`);
 
 
 
-      if (dateObj.getDay() === 0) {
+      if (dateObj.getDay() === 0) {
 
-        // Pazarları kapat
+        // Pazarları kapat
 
-        setAvailableSlots([]);
+        setAvailableSlots([]);
 
-        setSelectedTime("");
+        setSelectedTime("");
 
-        return;
+        return;
 
-      }
+      }
 
 
 
-      // Madde 19: Blocked date validation for Agent
+      // Madde 19: Blocked date validation for Agent
 
-      const { data: blocks } = await supabase
+      const { data: blocks } = await supabase
 
-        .from("blocked_dates")
+        .from("blocked_dates")
 
-        .select("\*")
+        .select("*")
 
-        .lte("start_date", selectedDate)
+        .lte("start_date", selectedDate)
 
-        .gte("end_date", selectedDate)
+        .gte("end_date", selectedDate)
 
-        .or(\`agent_id.is.null,agent_id.eq.${property.agents.id}\`);
+        .or(`agent_id.is.null,agent_id.eq.${property.agents.id}`);
 
 
 
-      if (cancelled) return;
+      if (cancelled) return;
 
 
 
-      let isFullDayBlocked = false;
+      let isFullDayBlocked = false;
 
-      const specificallyBlockedSlots: string[] = [];
+      const specificallyBlockedSlots: string[] = [];
 
 
 
-      const allSlots = [
+      const allSlots = [
 
-        "08:00",
+        "08:00",
 
-        "09:00",
+        "09:00",
 
-        "10:00",
+        "10:00",
 
-        "11:00",
+        "11:00",
 
-        "12:00",
+        "12:00",
 
-        "13:00",
+        "13:00",
 
-        "14:00",
+        "14:00",
 
-        "15:00",
+        "15:00",
 
-        "16:00",
+        "16:00",
 
-        "17:00",
+        "17:00",
 
-      ];
+      ];
 
 
 
-      if (blocks && blocks.length > 0) {
+      if (blocks && blocks.length > 0) {
 
-        blocks.forEach((block) => {
+        blocks.forEach((block) => {
 
-          if (!block.start_time || !block.end_time) {
+          if (!block.start_time || !block.end_time) {
 
-            isFullDayBlocked = true;
+            isFullDayBlocked = true;
 
-          } else {
+          } else {
 
-            const blockStartHour = parseInt(
+            const blockStartHour = parseInt(
 
-              block.start_time.split(":")[0],
+              block.start_time.split(":")[0],
 
-              10
+              10
 
-            );
+            );
 
 
 
-            const blockEndHour = parseInt(
+            const blockEndHour = parseInt(
 
-              block.end_time.split(":")[0],
+              block.end_time.split(":")[0],
 
-              10
+              10
 
-            );
+            );
 
 
 
-            allSlots.forEach((slot) => {
+            allSlots.forEach((slot) => {
 
-              const slotHour = parseInt(slot.split(":")[0], 10);
+              const slotHour = parseInt(slot.split(":")[0], 10);
 
 
 
-              // Eğer slot saati block başlangıç-bitiş aralığındaysa o slotu çıkar
+              // Eğer slot saati block başlangıç-bitiş aralığındaysa o slotu çıkar
 
-              if (slotHour >= blockStartHour && slotHour < blockEndHour) {
+              if (slotHour >= blockStartHour && slotHour < blockEndHour) {
 
-                specificallyBlockedSlots.push(slot);
+                specificallyBlockedSlots.push(slot);
 
-              }
+              }
 
-            });
+            });
 
-          }
+          }
 
-        });
+        });
 
-      }
+      }
 
 
 
-      if (isFullDayBlocked) {
+      if (isFullDayBlocked) {
 
-        setAvailableSlots([]);
+        setAvailableSlots([]);
 
-        setSelectedTime("");
+        setSelectedTime("");
 
-        return;
+        return;
 
-      }
+      }
 
 
 
-      // Mevcut rezervasyonları çek (Double Booking'i önlemek için slotları dolu göster)
+      // Mevcut rezervasyonları çek (Double Booking'i önlemek için slotları dolu göster)
 
-      const { data: existingBookings } = await supabase
+      const { data: existingBookings } = await supabase
 
-        .from("bookings")
+        .from("bookings")
 
-        .select("start_time")
+        .select("start_time")
 
-        .eq("property_id", id)
+        .eq("property_id", id)
 
-        .eq("viewing_date", selectedDate)
+        .eq("viewing_date", selectedDate)
 
-        .in("status", ["pending", "confirmed"]);
+        .in("status", ["pending", "confirmed"]);
 
 
 
-      const { data: agentBookings } = await supabase
+      const { data: agentBookings } = await supabase
 
-        .from("bookings")
+        .from("bookings")
 
-        .select("start_time")
+        .select("start_time")
 
-        .eq("agent_id", property.agents.id)
+        .eq("agent_id", property.agents.id)
 
-        .eq("viewing_date", selectedDate)
+        .eq("viewing_date", selectedDate)
 
-        .in("status", ["pending", "confirmed"]);
+        .in("status", ["pending", "confirmed"]);
 
 
 
-      if (cancelled) return;
+      if (cancelled) return;
 
 
 
-      const bookedTimes = [
+      const bookedTimes = [
 
-        ...(existingBookings?.map((b) => b.start_time.substring(0, 5)) || []),
+        ...(existingBookings?.map((b) => b.start_time.substring(0, 5)) || []),
 
-        ...(agentBookings?.map((b) => b.start_time.substring(0, 5)) || []),
+        ...(agentBookings?.map((b) => b.start_time.substring(0, 5)) || []),
 
-      ];
+      ];
 
 
 
-      // Eğer seçilen tarih bugün ise, geçmiş saatleri de kapat
+      // Eğer seçilen tarih bugün ise, geçmiş saatleri de kapat
 
-      const now = new Date();
+      const now = new Date();
 
-      const currentHour = now\.getHours();
+      const currentHour = now.getHours();
 
-      const isToday = selectedDate === todayStr;
+      const isToday = selectedDate === todayStr;
 
 
 
-      const freeSlots = allSlots.filter((slot) => {
+      const freeSlots = allSlots.filter((slot) => {
 
-        const slotHour = parseInt(slot.split(":")[0], 10);
+        const slotHour = parseInt(slot.split(":")[0], 10);
 
-        const isPastHour = isToday && slotHour <= currentHour;
+        const isPastHour = isToday && slotHour <= currentHour;
 
 
 
-        return (
+        return (
 
-          !bookedTimes.includes(slot) &&
+          !bookedTimes.includes(slot) &&
 
-          !specificallyBlockedSlots.includes(slot) &&
+          !specificallyBlockedSlots.includes(slot) &&
 
-          !isPastHour
+          !isPastHour
 
-        );
+        );
 
-      });
+      });
 
 
 
-      setAvailableSlots(freeSlots);
+      setAvailableSlots(freeSlots);
 
 
 
-      setSelectedTime((prev) =>
+      setSelectedTime((prev) =>
 
-        freeSlots.includes(prev) ? prev : freeSlots[0] || ""
+        freeSlots.includes(prev) ? prev : freeSlots[0] || ""
 
-      );
+      );
 
-    }
+    }
 
 
 
-    calculateAvailability();
+    calculateAvailability();
 
 
 
-    return () => {
+    return () => {
 
-      cancelled = true;
+      cancelled = true;
 
-    };
+    };
 
-  }, [selectedDate, property?.agents?.id, id]);
+  }, [selectedDate, property?.agents?.id, id]);
 
 
 
-  const handleBookingSubmit = async (e: React.FormEvent) => {
-
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (
@@ -724,1940 +723,1940 @@ export default function PropertyDetailsPage() {
 
   const handleMessageSubmit = async (e: React.FormEvent) => {
 
-    e.preventDefault();
+    e.preventDefault();
 
 
 
-    setMsgLoading(true);
+    setMsgLoading(true);
 
-    setMsgError("");
+    setMsgError("");
 
-    setMsgSuccess(false);
+    setMsgSuccess(false);
 
 
 
-    try {
+    try {
 
-      const supabase = createClient();
+      const supabase = createClient();
 
 
 
-      const { data: authData } = await supabase.auth.getUser();
+      const { data: authData } = await supabase.auth.getUser();
 
 
 
-      let customerId: string | null = null;
+      let customerId: string | null = null;
 
 
 
-      if (authData?.user) {
+      if (authData?.user) {
 
-        const { data: custData } = await supabase
+        const { data: custData } = await supabase
 
-          .from("customers")
+          .from("customers")
 
-          .select("id")
+          .select("id")
 
-          .eq("auth_user_id", authData.user.id)
+          .eq("auth_user_id", authData.user.id)
 
-          .single();
+          .single();
 
 
 
-        if (custData) {
+        if (custData) {
 
-          customerId = custData.id;
+          customerId = custData.id;
 
-        }
+        }
 
-      }
+      }
 
 
 
-      const { error } = await supabase.from("messages").insert([
+      const { error } = await supabase.from("messages").insert([
 
-        {
+        {
 
-          property_id: property?.id,
+          property_id: property?.id,
 
-          customer_id: customerId,
+          customer_id: customerId,
 
-          sender_name: msgName.trim(),
+          sender_name: msgName.trim(),
 
-          sender_email: msgEmail.trim(),
+          sender_email: msgEmail.trim(),
 
-          sender_phone: msgPhone.trim() || null,
+          sender_phone: msgPhone.trim() || null,
 
-          message: msgText.trim(),
+          message: msgText.trim(),
 
-        },
+        },
 
-      ]);
+      ]);
 
 
 
-      if (error) throw error;
+      if (error) throw error;
 
 
 
-      try {
+      try {
 
-        const notificationResponse = await fetch("/api/contact", {
+        const notificationResponse = await fetch("/api/contact", {
 
-          method: "POST",
+          method: "POST",
 
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
 
-          body: JSON.stringify({
+          body: JSON.stringify({
 
-            name: msgName.trim(),
+            name: msgName.trim(),
 
-            email: msgEmail.trim(),
+            email: msgEmail.trim(),
 
-            phone: msgPhone.trim() || null,
+            phone: msgPhone.trim() || null,
 
-            message: msgText.trim(),
+            message: msgText.trim(),
 
-            propertyTitle: property?.title,
+            propertyTitle: property?.title,
 
-            propertyRef: property?.property_ref,
+            propertyRef: property?.property_ref,
 
-          }),
+          }),
 
-        });
+        });
 
 
 
-        if (!notificationResponse.ok) {
+        if (!notificationResponse.ok) {
 
-          console.error(
+          console.error(
 
-            "Contact email notification failed:",
+            "Contact email notification failed:",
 
-            await notificationResponse.text()
+            await notificationResponse.text()
 
-          );
+          );
 
-        }
+        }
 
-      } catch (notificationError) {
+      } catch (notificationError) {
 
-        console.error(
+        console.error(
 
-          "Contact email notification request failed:",
+          "Contact email notification request failed:",
 
-          notificationError
+          notificationError
 
-        );
+        );
 
-      }
+      }
 
 
 
-      setMsgSuccess(true);
+      setMsgSuccess(true);
 
-      setMsgName("");
+      setMsgName("");
 
-      setMsgEmail("");
+      setMsgEmail("");
 
-      setMsgPhone("");
+      setMsgPhone("");
 
-      setMsgText("");
+      setMsgText("");
 
-    } catch (error: any) {
+    } catch (error: any) {
 
-      setMsgError("Failed to send message: " + error.message);
+      setMsgError("Failed to send message: " + error.message);
 
-    } finally {
+    } finally {
 
-      setMsgLoading(false);
+      setMsgLoading(false);
 
-    }
+    }
 
-  };
+  };
 
 
 
-  const handleShare = () => {
+  const handleShare = () => {
 
-    if (navigator.share) {
+    if (navigator.share) {
 
-      navigator.share({
+      navigator.share({
 
-        title: property?.title || "Property",
+        title: property?.title || "Property",
 
-        url: window\.location.href,
+        url: window.location.href,
 
-      }).catch(() => {});
+      }).catch(() => {});
 
-    } else {
+    } else {
 
-      navigator.clipboard.writeText(window\.location.href);
+      navigator.clipboard.writeText(window.location.href);
 
-      setCopied(true);
+      setCopied(true);
 
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), 2000);
 
-    }
+    }
 
-  };
+  };
 
 
 
-  const currentList =
+  const currentList =
 
-    activeTab === "interior"
+    activeTab === "interior"
 
-      ? interiorImages
+      ? interiorImages
 
-      : activeTab === "exterior"
+      : activeTab === "exterior"
 
-        ? exteriorImages
+        ? exteriorImages
 
-        : activeTab === "floorplan" && property?.floor_plan_2d
+        : activeTab === "floorplan" && property?.floor_plan_2d
 
-          ? [property.floor_plan_2d]
+          ? [property.floor_plan_2d]
 
-          : [];
+          : [];
 
 
 
-  const currentImage = currentList[currentIndex] || "";
+  const currentImage = currentList[currentIndex] || "";
 
 
 
-  const handlePrev = (e: React.MouseEvent) => {
+  const handlePrev = (e: React.MouseEvent) => {
 
-    e.stopPropagation();
+    e.stopPropagation();
 
 
 
-    if (currentList.length > 1) {
+    if (currentList.length > 1) {
 
-      setCurrentIndex((prev) =>
+      setCurrentIndex((prev) =>
 
-        prev === 0 ? currentList.length - 1 : prev - 1
+        prev === 0 ? currentList.length - 1 : prev - 1
 
-      );
+      );
 
-    }
+    }
 
-  };
+  };
 
 
 
-  const handleNext = (e: React.MouseEvent) => {
+  const handleNext = (e: React.MouseEvent) => {
 
-    e.stopPropagation();
+    e.stopPropagation();
 
 
 
-    if (currentList.length > 1) {
+    if (currentList.length > 1) {
 
-      setCurrentIndex((prev) =>
+      setCurrentIndex((prev) =>
 
-        prev === currentList.length - 1 ? 0 : prev + 1
+        prev === currentList.length - 1 ? 0 : prev + 1
 
-      );
+      );
 
-    }
+    }
 
-  };
+  };
 
 
 
-  const selectMediaTab = (tab: string) => {
+  const selectMediaTab = (tab: string) => {
 
-    setActiveTab(tab);
+    setActiveTab(tab);
 
-    setCurrentIndex(0);
+    setCurrentIndex(0);
 
-    setIsLightboxOpen(false);
+    setIsLightboxOpen(false);
 
-  };
+  };
 
 
 
-  const FeatureRow = ({
+  const FeatureRow = ({
 
-    label,
+    label,
 
-    value,
+    value,
 
-    type = "bool",
+    type = "bool",
 
-  }: {
+  }: {
 
-    label: string;
+    label: string;
 
-    value: any;
+    value: any;
 
-    type?: "bool" | "text";
+    type?: "bool" | "text";
 
-  }) => (
+  }) => (
 
-    \<div className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+    <div className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
 
-      \<span className="text-gray-500 text-sm">{label}\</span>
+      <span className="text-gray-500 text-sm">{label}</span>
 
 
 
-      {type === "bool" ? (
+      {type === "bool" ? (
 
-        value ? (
+        value ? (
 
-          \<Check className="w-5 h-5 text-green-600" />
+          <Check className="w-5 h-5 text-green-600" />
 
-        ) : (
+        ) : (
 
-          \<X className="w-5 h-5 text-red-500" />
+          <X className="w-5 h-5 text-red-500" />
 
-        )
+        )
 
-      ) : (
+      ) : (
 
-        \<span className="text-gray-900 text-sm font-medium">
+        <span className="text-gray-900 text-sm font-medium">
 
-          {value || "-"}
+          {value || "-"}
 
-        \</span>
+        </span>
 
-      )}
+      )}
 
-    \</div>
+    </div>
 
-  );
+  );
 
 
 
-  if (loading) {
+  if (loading) {
 
-    return (
+    return (
 
-      \<div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
 
-        \<div className="text-center">
+        <div className="text-center">
 
-          \<div className="w-10 h-10 border-2 border-gray-200 border-t-[#ae884e] rounded-full animate-spin mx-auto mb-4" />
+          <div className="w-10 h-10 border-2 border-gray-200 border-t-[#ae884e] rounded-full animate-spin mx-auto mb-4" />
 
-          \<p className="text-gray-500 font-light">Loading property...\</p>
+          <p className="text-gray-500 font-light">Loading property...</p>
 
-        \</div>
+        </div>
 
-      \</div>
+      </div>
 
-    );
+    );
 
-  }
+  }
 
 
 
-  if (!property) return null;
+  if (!property) return null;
 
 
 
-  const has3DModel = Boolean(
+  const has3DModel = Boolean(
 
-    property.model_3d_url && property.has_3d_model
+    property.model_3d_url && property.has_3d_model
 
-  );
+  );
 
 
 
-  const hasVirtualTour = Boolean(property.virtual_tour_url);
+  const hasVirtualTour = Boolean(property.virtual_tour_url);
 
 
 
-  return (
+  return (
 
-    \<div className="min-h-screen bg-gray-50 pt-28 pb-20">
+    <div className="min-h-screen bg-gray-50 pt-28 pb-20">
 
-      \<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
 
-        \<div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
 
-          \<button
+          <button
 
-            onClick={() => router.back()}
+            onClick={() => router.back()}
 
-            className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-[#1c3053] transition-colors"
+            className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-[#1c3053] transition-colors"
 
-          >
+          >
 
-            \<ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-4 h-4 mr-2" />
 
-            Back to Listings
+            Back to Listings
 
-          \</button>
+          </button>
 
 
 
-          \<div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
 
-            \<button
+            <button
 
-              onClick={() => toggleWishlist(id)}
+              onClick={() => toggleWishlist(id)}
 
-              className={\`inline-flex items-center px-4 py-2 rounded-xl border transition-all text-sm font-medium ${
+              className={`inline-flex items-center px-4 py-2 rounded-xl border transition-all text-sm font-medium ${
 
-                isSaved
+                isSaved
 
-                  ? "bg-red-50 border-red-200 text-red-600"
+                  ? "bg-red-50 border-red-200 text-red-600"
 
-                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
+                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
 
-              }\`}
+              }`}
 
-            >
+            >
 
-              \<Heart className={\`w-4 h-4 mr-2 ${isSaved ? "fill-current" : ""}\`} />
+              <Heart className={`w-4 h-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
 
-              {isSaved ? "Saved" : "Save"}
+              {isSaved ? "Saved" : "Save"}
 
-            \</button>
+            </button>
 
 
 
-            \<button
+            <button
 
-              onClick={handleShare}
+              onClick={handleShare}
 
-              className="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-all text-sm font-medium shadow-sm"
+              className="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-all text-sm font-medium shadow-sm"
 
-            >
+            >
 
-              \<Share2 className="w-4 h-4 mr-2 text-[#ae884e]" />
+              <Share2 className="w-4 h-4 mr-2 text-[#ae884e]" />
 
-              {copied ? "Link Copied!" : "Share"}
+              {copied ? "Link Copied!" : "Share"}
 
-            \</button>
+            </button>
 
-          \</div>
+          </div>
 
-        \</div>
+        </div>
 
-      \</div>
+      </div>
 
 
 
-      \<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        \<div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm mb-10 overflow-hidden p-4">
+        <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm mb-10 overflow-hidden p-4">
 
-          \<div className="flex gap-3 mb-4 overflow-x-auto pb-2 scrollbar-hide justify-start md:justify-center">
+          <div className="flex gap-3 mb-4 overflow-x-auto pb-2 scrollbar-hide justify-start md:justify-center">
 
-            \<button
+            <button
 
-              onClick={() => selectMediaTab("interior")}
+              onClick={() => selectMediaTab("interior")}
 
-              className={\`px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
+              className={`px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
 
-                activeTab === "interior"
+                activeTab === "interior"
 
-                  ? "bg-[#1c3053] text-white"
+                  ? "bg-[#1c3053] text-white"
 
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
 
-              }\`}
+              }`}
 
-            >
+            >
 
-              Interior ({interiorImages.length})
+              Interior ({interiorImages.length})
 
-            \</button>
+            </button>
 
 
 
-            \<button
+            <button
 
-              onClick={() => selectMediaTab("exterior")}
+              onClick={() => selectMediaTab("exterior")}
 
-              className={\`px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
+              className={`px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
 
-                activeTab === "exterior"
+                activeTab === "exterior"
 
-                  ? "bg-[#1c3053] text-white"
+                  ? "bg-[#1c3053] text-white"
 
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
 
-              }\`}
+              }`}
 
-            >
+            >
 
-              Exterior ({exteriorImages.length})
+              Exterior ({exteriorImages.length})
 
-            \</button>
+            </button>
 
 
 
-            {property.floor_plan_2d && (
+            {property.floor_plan_2d && (
 
-              \<button
+              <button
 
-                onClick={() => selectMediaTab("floorplan")}
+                onClick={() => selectMediaTab("floorplan")}
 
-                className={\`px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
+                className={`px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
 
-                  activeTab === "floorplan"
+                  activeTab === "floorplan"
 
-                    ? "bg-[#1c3053] text-white"
+                    ? "bg-[#1c3053] text-white"
 
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
 
-                }\`}
+                }`}
 
-              >
+              >
 
-                2D Floor Plan
+                2D Floor Plan
 
-              \</button>
+              </button>
 
-            )}
+            )}
 
 
 
-            {has3DModel && (
+            {has3DModel && (
 
-              \<button
+              <button
 
-                onClick={() => selectMediaTab("3dtour")}
+                onClick={() => selectMediaTab("3dtour")}
 
-                className={\`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
 
-                  activeTab === "3dtour"
+                  activeTab === "3dtour"
 
-                    ? "bg-[#1c3053] text-white"
+                    ? "bg-[#1c3053] text-white"
 
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
 
-                }\`}
+                }`}
 
-              >
+              >
 
-                \<Box className="w-4 h-4" />
+                <Box className="w-4 h-4" />
 
-                3D Model
+                3D Model
 
-              \</button>
+              </button>
 
-            )}
+            )}
 
 
 
-            {hasVirtualTour && (
+            {hasVirtualTour && (
 
-              \<button
+              <button
 
-                onClick={() => selectMediaTab("virtualtour")}
+                onClick={() => selectMediaTab("virtualtour")}
 
-                className={\`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all whitespace-nowrap ${
 
-                  activeTab === "virtualtour"
+                  activeTab === "virtualtour"
 
-                    ? "bg-[#1c3053] text-white"
+                    ? "bg-[#1c3053] text-white"
 
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
 
-                }\`}
+                }`}
 
-              >
+              >
 
-                \<Globe className="w-4 h-4" />
+                <Globe className="w-4 h-4" />
 
-                Virtual Tour
+                Virtual Tour
 
-              \</button>
+              </button>
 
-            )}
+            )}
 
-          \</div>
+          </div>
 
 
 
-          \<div
+          <div
 
-            onClick={() =>
+            onClick={() =>
 
-              activeTab !== "3dtour" &&
+              activeTab !== "3dtour" &&
 
-              activeTab !== "virtualtour" &&
+              activeTab !== "virtualtour" &&
 
-              currentImage &&
+              currentImage &&
 
-              setIsLightboxOpen(true)
+              setIsLightboxOpen(true)
 
-            }
+            }
 
-            className={\`w-full h-[300px] md:h-[550px] rounded-2xl overflow-hidden relative bg-gray-900 flex items-center justify-center ${
+            className={`w-full h-[300px] md:h-[550px] rounded-2xl overflow-hidden relative bg-gray-900 flex items-center justify-center ${
 
-              activeTab === "3dtour" || activeTab === "virtualtour"
+              activeTab === "3dtour" || activeTab === "virtualtour"
 
-                ? ""
+                ? ""
 
-                : "cursor-pointer group"
+                : "cursor-pointer group"
 
-            }\`}
+            }`}
 
-          >
+          >
 
-            {activeTab === "3dtour" && has3DModel ? (
+            {activeTab === "3dtour" && has3DModel ? (
 
-              \<div className="w-full h-full bg-gray-900 relative">
+              <div className="w-full h-full bg-gray-900 relative">
 
-                {/\* @ts-ignore \*/}
+                {/* @ts-ignore */}
 
-                \<model-viewer
+                <model-viewer
 
-                  src={property.model_3d_url ?? undefined}
+                  src={property.model_3d_url ?? undefined}
 
-                  alt="A 3D model of the property"
+                  alt="A 3D model of the property"
 
-                  auto-rotate
+                  auto-rotate
 
-                  camera-controls
+                  camera-controls
 
-                  ar
+                  ar
 
-                  style={{
+                  style={{
 
-                    width: "100%",
+                    width: "100%",
 
-                    height: "100%",
+                    height: "100%",
 
-                    backgroundColor: "#111827",
+                    backgroundColor: "#111827",
 
-                  }}
+                  }}
 
-                >
+                >
 
-                  \<div className="absolute bottom-4 left-4 right-4 md:right-auto bg-black/60 backdrop-blur-md text-white text-xs px-3 py-2 rounded-lg pointer-events-none">
+                  <div className="absolute bottom-4 left-4 right-4 md:right-auto bg-black/60 backdrop-blur-md text-white text-xs px-3 py-2 rounded-lg pointer-events-none">
 
-                    Use your mouse or touch screen to rotate, zoom and explore the property.
+                    Use your mouse or touch screen to rotate, zoom and explore the property.
 
-                  \</div>
+                  </div>
 
-                \</model-viewer>
+                </model-viewer>
 
-              \</div>
+              </div>
 
-            ) : activeTab === "virtualtour" && hasVirtualTour ? (
+            ) : activeTab === "virtualtour" && hasVirtualTour ? (
 
-              \<div className="w-full h-full bg-gray-950 relative">
+              <div className="w-full h-full bg-gray-950 relative">
 
-                \<iframe
+                <iframe
 
-                  src={property.virtual_tour_url ?? undefined}
+                  src={property.virtual_tour_url ?? undefined}
 
-                  title={\`Virtual tour of ${property.title}\`}
+                  title={`Virtual tour of ${property.title}`}
 
-                  className="w-full h-full border-0"
+                  className="w-full h-full border-0"
 
-                  allow="fullscreen; autoplay; xr-spatial-tracking"
+                  allow="fullscreen; autoplay; xr-spatial-tracking"
 
-                  allowFullScreen
+                  allowFullScreen
 
-                  loading="lazy"
+                  loading="lazy"
 
-                />
+                />
 
 
 
-                \<a
+                <a
 
-                  href={property.virtual_tour_url ?? undefined}
+                  href={property.virtual_tour_url ?? undefined}
 
-                  target="\_blank"
+                  target="_blank"
 
-                  rel="noreferrer"
+                  rel="noreferrer"
 
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
 
-                  className="absolute top-4 right-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black/70 backdrop-blur-md text-white text-sm font-medium hover:bg-[#ae884e] transition-all shadow-lg"
+                  className="absolute top-4 right-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black/70 backdrop-blur-md text-white text-sm font-medium hover:bg-[#ae884e] transition-all shadow-lg"
 
-                >
+                >
 
-                  \<ExternalLink className="w-4 h-4" />
+                  <ExternalLink className="w-4 h-4" />
 
-                  Open Full Tour
+                  Open Full Tour
 
-                \</a>
+                </a>
 
-              \</div>
+              </div>
 
-            ) : currentImage ? (
+            ) : currentImage ? (
 
-              <>
+              <>
 
-                {currentImage.match(/**\\.**(mp4|webm|mov)$/i) ? (
+                {currentImage.match(/\.(mp4|webm|mov)$/i) ? (
 
-                  \<video
+                  <video
 
-                    src={currentImage}
+                    src={currentImage}
 
-                    autoPlay
+                    autoPlay
 
-                    muted
+                    muted
 
-                    loop
+                    loop
 
-                    playsInline
+                    playsInline
 
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
 
-                  />
+                  />
 
-                ) : (
+                ) : (
 
-                  \<Image
+                  <Image
 
-                    src={currentImage}
+                    src={currentImage}
 
-                    alt="Property"
+                    alt="Property"
 
-                    fill
+                    fill
 
-                    priority
+                    priority
 
-                    sizes="(max-width: 768px) 100vw, 1200px"
+                    sizes="(max-width: 768px) 100vw, 1200px"
 
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
 
-                  />
+                  />
 
-                )}
+                )}
 
 
 
-                {currentList.length > 1 && (
+                {currentList.length > 1 && (
 
-                  <>
+                  <>
 
-                    \<button
+                    <button
 
-                      onClick={handlePrev}
+                      onClick={handlePrev}
 
-                      className="absolute left-4 p-3 rounded-full bg-black/50 text-white hover:bg-black/75 opacity-80 group-hover:opacity-100 transition-opacity"
+                      className="absolute left-4 p-3 rounded-full bg-black/50 text-white hover:bg-black/75 opacity-80 group-hover:opacity-100 transition-opacity"
 
-                    >
+                    >
 
-                      \<ChevronLeft className="w-6 h-6" />
+                      <ChevronLeft className="w-6 h-6" />
 
-                    \</button>
+                    </button>
 
 
 
-                    \<button
+                    <button
 
-                      onClick={handleNext}
+                      onClick={handleNext}
 
-                      className="absolute right-4 p-3 rounded-full bg-black/50 text-white hover:bg-black/75 opacity-80 group-hover:opacity-100 transition-opacity"
+                      className="absolute right-4 p-3 rounded-full bg-black/50 text-white hover:bg-black/75 opacity-80 group-hover:opacity-100 transition-opacity"
 
-                    >
+                    >
 
-                      \<ChevronRight className="w-6 h-6" />
+                      <ChevronRight className="w-6 h-6" />
 
-                    \</button>
+                    </button>
 
-                  \</>
+                  </>
 
-                )}
+                )}
 
 
 
-                \<div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
 
-                  \<Maximize2 className="w-3.5 h-3.5" />
+                  <Maximize2 className="w-3.5 h-3.5" />
 
-                  Click to enlarge
+                  Click to enlarge
 
-                \</div>
+                </div>
 
-              \</>
+              </>
 
-            ) : (
+            ) : (
 
-              \<span className="text-gray-400">No media available\</span>
+              <span className="text-gray-400">No media available</span>
 
-            )}
+            )}
 
-          \</div>
+          </div>
 
-        \</div>
+        </div>
 
 
 
-        {isLightboxOpen && currentImage && (
+        {isLightboxOpen && currentImage && (
 
-          \<div
+          <div
 
-            onClick={() => setIsLightboxOpen(false)}
+            onClick={() => setIsLightboxOpen(false)}
 
-            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm"
 
-          >
+          >
 
-            \<button
+            <button
 
-              onClick={() => setIsLightboxOpen(false)}
+              onClick={() => setIsLightboxOpen(false)}
 
-              className="absolute top-6 right-6 p-3 rounded-full bg-white/10 text-white hover:bg-white/20"
+              className="absolute top-6 right-6 p-3 rounded-full bg-white/10 text-white hover:bg-white/20"
 
-            >
+            >
 
-              \<X className="w-8 h-8" />
+              <X className="w-8 h-8" />
 
-            \</button>
+            </button>
 
 
 
-            {currentList.length > 1 && (
+            {currentList.length > 1 && (
 
-              \<button
+              <button
 
-                onClick={handlePrev}
+                onClick={handlePrev}
 
-                className="absolute left-6 p-4 rounded-full bg-white/10 text-white hover:bg-white/20"
+                className="absolute left-6 p-4 rounded-full bg-white/10 text-white hover:bg-white/20"
 
-              >
+              >
 
-                \<ChevronLeft className="w-8 h-8" />
+                <ChevronLeft className="w-8 h-8" />
 
-              \</button>
+              </button>
 
-            )}
+            )}
 
 
 
-            {currentImage.match(/**\\.**(mp4|webm|mov)$/i) ? (
+            {currentImage.match(/\.(mp4|webm|mov)$/i) ? (
 
-              \<video
+              <video
 
-                src={currentImage}
+                src={currentImage}
 
-                controls
+                controls
 
-                autoPlay
+                autoPlay
 
-                playsInline
+                playsInline
 
-                className="max-w-full max-h-[90vh] rounded-xl"
+                className="max-w-full max-h-[90vh] rounded-xl"
 
-              />
+              />
 
-            ) : (
+            ) : (
 
-              \<div className="relative w-full max-w-6xl h-[80vh]">
+              <div className="relative w-full max-w-6xl h-[80vh]">
 
-                \<Image
+                <Image
 
-                  src={currentImage}
+                  src={currentImage}
 
-                  alt="Fullscreen"
+                  alt="Fullscreen"
 
-                  fill
+                  fill
 
-                  sizes="100vw"
+                  sizes="100vw"
 
-                  className="object-contain rounded-xl"
+                  className="object-contain rounded-xl"
 
-                />
+                />
 
-              \</div>
+              </div>
 
-            )}
+            )}
 
 
 
-            {currentList.length > 1 && (
+            {currentList.length > 1 && (
 
-              \<button
+              <button
 
-                onClick={handleNext}
+                onClick={handleNext}
 
-                className="absolute right-6 p-4 rounded-full bg-white/10 text-white hover:bg-white/20"
+                className="absolute right-6 p-4 rounded-full bg-white/10 text-white hover:bg-white/20"
 
-              >
+              >
 
-                \<ChevronRight className="w-8 h-8" />
+                <ChevronRight className="w-8 h-8" />
 
-              \</button>
+              </button>
 
-            )}
+            )}
 
-          \</div>
+          </div>
 
-        )}
+        )}
 
 
 
-        \<div className="flex flex-col lg:flex-row gap-8">
+        <div className="flex flex-col lg:flex-row gap-8">
 
-          \<div className="flex-1 space-y-8">
+          <div className="flex-1 space-y-8">
 
-            \<div className="bg-white p-8 md:p-12 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <div className="bg-white p-8 md:p-12 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
 
-              \<h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-gray-900 mb-4">
+              <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-gray-900 mb-4">
 
-                {property.title}
+                {property.title}
 
-              \</h1>
+              </h1>
 
 
 
-              \<div className="flex items-center text-gray-600 mb-6">
+              <div className="flex items-center text-gray-600 mb-6">
 
-                \<MapPin className="w-5 h-5 mr-2 text-[#ae884e]" />
+                <MapPin className="w-5 h-5 mr-2 text-[#ae884e]" />
 
-                \<span className="text-lg font-medium">
+                <span className="text-lg font-medium">
 
-                  {property.full_address}
+                  {property.full_address}
 
-                \</span>
+                </span>
 
-              \</div>
+              </div>
 
 
 
-              \<div className="flex flex-wrap gap-6 border-y border-gray-100 py-6 mb-6">
+              <div className="flex flex-wrap gap-6 border-y border-gray-100 py-6 mb-6">
 
-                \<div className="flex items-center text-gray-600">
+                <div className="flex items-center text-gray-600">
 
-                  \<Bed className="w-6 h-6 mr-3 text-[#ae884e]" />
+                  <Bed className="w-6 h-6 mr-3 text-[#ae884e]" />
 
-                  \<span className="font-light text-lg">
+                  <span className="font-light text-lg">
 
-                    {property.bedrooms} Beds
+                    {property.bedrooms} Beds
 
-                  \</span>
+                  </span>
 
-                \</div>
+                </div>
 
 
 
-                \<div className="flex items-center text-gray-600">
+                <div className="flex items-center text-gray-600">
 
-                  \<Bath className="w-6 h-6 mr-3 text-[#ae884e]" />
+                  <Bath className="w-6 h-6 mr-3 text-[#ae884e]" />
 
-                  \<span className="font-light text-lg">
+                  <span className="font-light text-lg">
 
-                    {property.bathrooms} Baths
+                    {property.bathrooms} Baths
 
-                  \</span>
+                  </span>
 
-                \</div>
+                </div>
 
-              \</div>
+              </div>
 
 
 
-              \<p className="text-gray-700 font-light leading-relaxed text-lg whitespace-pre-wrap">
+              <p className="text-gray-700 font-light leading-relaxed text-lg whitespace-pre-wrap">
 
-                {property.description}
+                {property.description}
 
-              \</p>
+              </p>
 
-            \</div>
+            </div>
 
 
 
-            \<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
-              \<div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
 
-                \<h3 className="text-xl font-semibold text-gray-900 mb-6 border-b pb-3">
+                <h3 className="text-xl font-semibold text-gray-900 mb-6 border-b pb-3">
 
-                  Price & Bills
+                  Price & Bills
 
-                \</h3>
+                </h3>
 
 
 
-                \<div className="space-y-4">
+                <div className="space-y-4">
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Deposit"
+                    label="Deposit"
 
-                    value={\`£${property.deposit?.toLocaleString() || "-"}\`}
+                    value={`£${property.deposit?.toLocaleString() || "-"}`}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Rent PCM"
+                    label="Rent PCM"
 
-                    value={\`£${property.monthly_rent?.toLocaleString() || "-"}\`}
+                    value={`£${property.monthly_rent?.toLocaleString() || "-"}`}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Bills Included"
+                    label="Bills Included"
 
-                    value={property.bills_included}
+                    value={property.bills_included}
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="DSS/LHA Covers Rent"
+                    label="DSS/LHA Covers Rent"
 
-                    value={property.dss_lha_covers_rent}
+                    value={property.dss_lha_covers_rent}
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Broadband"
+                    label="Broadband"
 
-                    value={property.broadband_info || "Ask Agent"}
+                    value={property.broadband_info || "Ask Agent"}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
-                \</div>
+                </div>
 
 
 
-                \<h3 className="text-xl font-semibold text-gray-900 mb-6 mt-8 border-b pb-3">
+                <h3 className="text-xl font-semibold text-gray-900 mb-6 mt-8 border-b pb-3">
 
-                  Availability
+                  Availability
 
-                \</h3>
+                </h3>
 
 
 
-                \<div className="space-y-4">
+                <div className="space-y-4">
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Available From"
+                    label="Available From"
 
-                    value={property.available_from || "Ask Agent"}
+                    value={property.available_from || "Ask Agent"}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Preferred Minimum Tenancy"
+                    label="Preferred Minimum Tenancy"
 
-                    value={property.preferred_min_tenancy || "-"}
+                    value={property.preferred_min_tenancy || "-"}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Online Viewings"
+                    label="Online Viewings"
 
-                    value={property.online_viewings}
+                    value={property.online_viewings}
 
-                  />
+                  />
 
-                \</div>
+                </div>
 
-              \</div>
+              </div>
 
 
 
-              \<div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
 
-                \<h3 className="text-xl font-semibold text-gray-900 mb-6 border-b pb-3">
+                <h3 className="text-xl font-semibold text-gray-900 mb-6 border-b pb-3">
 
-                  Tenant Preference
+                  Tenant Preference
 
-                \</h3>
+                </h3>
 
 
 
-                \<div className="space-y-4">
+                <div className="space-y-4">
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Student Friendly"
+                    label="Student Friendly"
 
-                    value={property.student_friendly}
+                    value={property.student_friendly}
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Families Allowed"
+                    label="Families Allowed"
 
-                    value={property.families_allowed}
+                    value={property.families_allowed}
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Pets Allowed"
+                    label="Pets Allowed"
 
-                    value={property.pets_allowed}
+                    value={property.pets_allowed}
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Smokers Allowed"
+                    label="Smokers Allowed"
 
-                    value={property.smokers_allowed}
+                    value={property.smokers_allowed}
 
-                  />
+                  />
 
-                \</div>
+                </div>
 
 
 
-                \<h3 className="text-xl font-semibold text-gray-900 mb-6 mt-8 border-b pb-3">
+                <h3 className="text-xl font-semibold text-gray-900 mb-6 mt-8 border-b pb-3">
 
-                  Features
+                  Features
 
-                \</h3>
+                </h3>
 
 
 
-                \<div className="space-y-4">
+                <div className="space-y-4">
 
-                  \<FeatureRow label="Garden" value={property.garden} />
+                  <FeatureRow label="Garden" value={property.garden} />
 
-                  \<FeatureRow label="Parking" value={property.parking} />
+                  <FeatureRow label="Parking" value={property.parking} />
 
-                  \<FeatureRow label="Fireplace" value={property.fireplace} />
+                  <FeatureRow label="Fireplace" value={property.fireplace} />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Furnishing"
+                    label="Furnishing"
 
-                    value={property.furnishing_status}
+                    value={property.furnishing_status}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="EPC Rating"
+                    label="EPC Rating"
 
-                    value={property.epc_rating}
+                    value={property.epc_rating}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Council Tax Band"
+                    label="Council Tax Band"
 
-                    value={property.council_tax_band}
+                    value={property.council_tax_band}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Heating"
+                    label="Heating"
 
-                    value={property.heating_type}
+                    value={property.heating_type}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Tenure"
+                    label="Tenure"
 
-                    value={property.tenure}
+                    value={property.tenure}
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
 
 
-                  \<FeatureRow
+                  <FeatureRow
 
-                    label="Minimum Tenancy"
+                    label="Minimum Tenancy"
 
-                    value={
+                    value={
 
-                      property.minimum_tenancy
+                      property.minimum_tenancy
 
-                        ? \`${property.minimum_tenancy} months\`
+                        ? `${property.minimum_tenancy} months`
 
-                        : "-"
+                        : "-"
 
-                    }
+                    }
 
-                    type="text"
+                    type="text"
 
-                  />
+                  />
 
-                \</div>
+                </div>
 
-              \</div>
+              </div>
 
-            \</div>
+            </div>
 
 
 
-            {property.agents && (
+            {property.agents && (
 
-              \<div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
 
-                \<h3 className="text-xl font-semibold text-gray-900 mb-6 border-b pb-3">
+                <h3 className="text-xl font-semibold text-gray-900 mb-6 border-b pb-3">
 
-                  Your Property Agent
+                  Your Property Agent
 
-                \</h3>
+                </h3>
 
 
 
-                \<div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
+                <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
 
-                  \<Image
+                  <Image
 
-                    src={
+                    src={
 
-                      property.agents.photo ||
+                      property.agents.photo ||
 
-                      property.agents.avatar_url ||
+                      property.agents.avatar_url ||
 
-                      "https\://via.placeholder.com/150"
+                      "https\://via.placeholder.com/150"
 
-                    }
+                    }
 
-                    alt={property.agents.name}
+                    alt={property.agents.name}
 
-                    width={96}
+                    width={96}
 
-                    height={96}
+                    height={96}
 
-                    unoptimized
+                    unoptimized
 
-                    className="w-24 h-24 rounded-full object-cover shadow-md"
+                    className="w-24 h-24 rounded-full object-cover shadow-md"
 
-                  />
+                  />
 
 
 
-                  \<div className="flex-1 text-center md:text-left">
+                  <div className="flex-1 text-center md:text-left">
 
-                    \<h4 className="text-lg font-semibold text-gray-900">
+                    <h4 className="text-lg font-semibold text-gray-900">
 
-                      {property.agents.name}
+                      {property.agents.name}
 
-                    \</h4>
+                    </h4>
 
 
 
-                    \<p className="text-gray-500 text-sm font-light mt-1 mb-4">
+                    <p className="text-gray-500 text-sm font-light mt-1 mb-4">
 
-                      {property.agents.bio}
+                      {property.agents.bio}
 
-                    \</p>
+                    </p>
 
 
 
-                    \<div className="flex flex-wrap justify-center md:justify-start gap-4">
+                    <div className="flex flex-wrap justify-center md:justify-start gap-4">
 
-                      {property.agents.phone && (
+                      {property.agents.phone && (
 
-                        \<a
+                        <a
 
-                          href={\`tel:${property.agents.phone}\`}
+                          href={`tel:${property.agents.phone}`}
 
-                          className="flex items-center text-sm font-medium text-[#1c3053] bg-gray-50 px-4 py-2 rounded-xl hover:bg-[#ae884e] hover:text-white transition-all"
+                          className="flex items-center text-sm font-medium text-[#1c3053] bg-gray-50 px-4 py-2 rounded-xl hover:bg-[#ae884e] hover:text-white transition-all"
 
-                        >
+                        >
 
-                          \<Phone className="w-4 h-4 mr-2" />
+                          <Phone className="w-4 h-4 mr-2" />
 
-                          {property.agents.phone}
+                          {property.agents.phone}
 
-                        \</a>
+                        </a>
 
-                      )}
+                      )}
 
 
 
-                      {property.agents.email && (
+                      {property.agents.email && (
 
-                        \<a
+                        <a
 
-                          href={\`mailto:${property.agents.email}\`}
+                          href={`mailto:${property.agents.email}`}
 
-                          className="flex items-center text-sm font-medium text-[#1c3053] bg-gray-50 px-4 py-2 rounded-xl hover:bg-[#ae884e] hover:text-white transition-all"
+                          className="flex items-center text-sm font-medium text-[#1c3053] bg-gray-50 px-4 py-2 rounded-xl hover:bg-[#ae884e] hover:text-white transition-all"
 
-                        >
+                        >
 
-                          \<Mail className="w-4 h-4 mr-2" />
+                          <Mail className="w-4 h-4 mr-2" />
 
-                          Email
+                          Email
 
-                        \</a>
+                        </a>
 
-                      )}
+                      )}
 
 
 
-                      {property.agents.whatsapp && (
+                      {property.agents.whatsapp && (
 
-                        \<a
+                        <a
 
-                          href={\`https\://wa.me/${property.agents.whatsapp.replace(
+                          href={`https\://wa.me/${property.agents.whatsapp.replace(
 
-                            /[^0-9]/g,
+                            /[^0-9]/g,
 
-                            ""
+                            ""
 
-                          )}\`}
+                          )}`}
 
-                          target="\_blank"
+                          target="_blank"
 
-                          rel="noreferrer"
+                          rel="noreferrer"
 
-                          className="flex items-center text-sm font-medium text-[#1c3053] bg-gray-50 px-4 py-2 rounded-xl hover:bg-[#ae884e] hover:text-white transition-all"
+                          className="flex items-center text-sm font-medium text-[#1c3053] bg-gray-50 px-4 py-2 rounded-xl hover:bg-[#ae884e] hover:text-white transition-all"
 
-                        >
+                        >
 
-                          \<MessageCircle className="w-4 h-4 mr-2" />
+                          <MessageCircle className="w-4 h-4 mr-2" />
 
-                          WhatsApp
+                          WhatsApp
 
-                        \</a>
+                        </a>
 
-                      )}
+                      )}
 
-                    \</div>
+                    </div>
 
-                  \</div>
+                  </div>
 
-                \</div>
+                </div>
 
-              \</div>
+              </div>
 
-            )}
+            )}
 
 
 
-            \<div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
 
-              \<h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center">
+              <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center">
 
-                \<MapPin className="w-5 h-5 mr-2 text-[#ae884e]" />
+                <MapPin className="w-5 h-5 mr-2 text-[#ae884e]" />
 
-                Property Location
+                Property Location
 
-              \</h3>
+              </h3>
 
 
 
-              \<div className="w-full h-64 rounded-2xl overflow-hidden relative border border-gray-200 bg-gray-100 flex items-center justify-center">
+              <div className="w-full h-64 rounded-2xl overflow-hidden relative border border-gray-200 bg-gray-100 flex items-center justify-center">
 
-                \<iframe
+                <iframe
 
-                  title="map"
+                  title="map"
 
-                  width="100%"
+                  width="100%"
 
-                  height="100%"
+                  height="100%"
 
-                  style={{ border: 0 }}
+                  style={{ border: 0 }}
 
-                  loading="lazy"
+                  loading="lazy"
 
-                  src={\`https\://maps.google.com/maps?q=${encodeURIComponent(
+                  src={`https\://maps.google.com/maps?q=${encodeURIComponent(
 
-                    property.full_address || property.short_location || ""
+                    property.full_address || property.short_location || ""
 
-                  )}&t=&z=14&ie=UTF8&iwloc=&output=embed\`}
+                  )}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
 
-                />
+                />
 
-              \</div>
+              </div>
 
-            \</div>
+            </div>
 
 
 
-            \<div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
 
-              \<h3 className="text-2xl font-semibold text-gray-900 mb-2">
+              <h3 className="text-2xl font-semibold text-gray-900 mb-2">
 
-                Have a question?
+                Have a question?
 
-              \</h3>
+              </h3>
 
 
 
-              \<p className="text-gray-500 font-light mb-8">
+              <p className="text-gray-500 font-light mb-8">
 
-                Send us a message about this property and we'll get back to you shortly.
+                Send us a message about this property and we'll get back to you shortly.
 
-              \</p>
+              </p>
 
 
 
-              {msgSuccess ? (
+              {msgSuccess ? (
 
-                \<div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
+                <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
 
-                  \<CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
 
 
 
-                  \<h4 className="text-lg font-semibold text-green-900 mb-2">
+                  <h4 className="text-lg font-semibold text-green-900 mb-2">
 
-                    Message Sent Successfully!
+                    Message Sent Successfully!
 
-                  \</h4>
+                  </h4>
 
 
 
-                  \<p className="text-green-700 font-light">
+                  <p className="text-green-700 font-light">
 
-                    Thank you for your interest. Our team will contact you soon.
+                    Thank you for your interest. Our team will contact you soon.
 
-                  \</p>
+                  </p>
 
 
 
-                  \<button
+                  <button
 
-                    onClick={() => setMsgSuccess(false)}
+                    onClick={() => setMsgSuccess(false)}
 
-                    className="mt-6 text-sm font-medium text-green-800 hover:underline"
+                    className="mt-6 text-sm font-medium text-green-800 hover:underline"
 
-                  >
+                  >
 
-                    Send another message
+                    Send another message
 
-                  \</button>
+                  </button>
 
-                \</div>
+                </div>
 
-              ) : (
+              ) : (
 
-                \<form onSubmit={handleMessageSubmit} className="space-y-6">
+                <form onSubmit={handleMessageSubmit} className="space-y-6">
 
-                  {msgError && (
+                  {msgError && (
 
-                    \<div className="p-4 bg-red-50 text-red-700 text-sm rounded-xl font-medium">
+                    <div className="p-4 bg-red-50 text-red-700 text-sm rounded-xl font-medium">
 
-                      {msgError}
+                      {msgError}
 
-                    \</div>
+                    </div>
 
-                  )}
+                  )}
 
 
 
-                  \<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                    \<div>
+                    <div>
 
-                      \<label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
 
-                        Your Name \*
+                        Your Name *
 
-                      \</label>
+                      </label>
 
 
 
-                      \<input
+                      <input
 
-                        type="text"
+                        type="text"
 
-                        required
+                        required
 
-                        value={msgName}
+                        value={msgName}
 
-                        onChange={(e) => setMsgName(e.target.value)}
+                        onChange={(e) => setMsgName(e.target.value)}
 
-                        className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors"
+                        className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors"
 
-                        placeholder="John Doe"
+                        placeholder="John Doe"
 
-                      />
+                      />
 
-                    \</div>
+                    </div>
 
 
 
-                    \<div>
+                    <div>
 
-                      \<label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
 
-                        Email Address \*
+                        Email Address *
 
-                      \</label>
+                      </label>
 
 
 
-                      \<input
+                      <input
 
-                        type="email"
+                        type="email"
 
-                        required
+                        required
 
-                        value={msgEmail}
+                        value={msgEmail}
 
-                        onChange={(e) => setMsgEmail(e.target.value)}
+                        onChange={(e) => setMsgEmail(e.target.value)}
 
-                        className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors"
+                        className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors"
 
-                        placeholder="john\@example.com"
+                        placeholder="john@example.com"
 
-                      />
+                      />
 
-                    \</div>
+                    </div>
 
-                  \</div>
+                  </div>
 
 
 
-                  \<div>
+                  <div>
 
-                    \<label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
 
-                      Phone Number (Optional)
+                      Phone Number (Optional)
 
-                    \</label>
+                    </label>
 
 
 
-                    \<input
+                    <input
 
-                      type="tel"
+                      type="tel"
 
-                      value={msgPhone}
+                      value={msgPhone}
 
-                      onChange={(e) => setMsgPhone(e.target.value)}
+                      onChange={(e) => setMsgPhone(e.target.value)}
 
-                      className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors"
+                      className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors"
 
-                      placeholder="+44 7000 000000"
+                      placeholder="+44 7000 000000"
 
-                    />
+                    />
 
-                  \</div>
+                  </div>
 
 
 
-                  \<div>
+                  <div>
 
-                    \<label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
 
-                      Your Message \*
+                      Your Message *
 
-                    \</label>
+                    </label>
 
 
 
-                    \<textarea
+                    <textarea
 
-                      required
+                      required
 
-                      rows={4}
+                      rows={4}
 
-                      value={msgText}
+                      value={msgText}
 
-                      onChange={(e) => setMsgText(e.target.value)}
+                      onChange={(e) => setMsgText(e.target.value)}
 
-                      className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors resize-none"
+                      className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#ae884e] transition-colors resize-none"
 
-                      placeholder="I would like to know more about..."
+                      placeholder="I would like to know more about..."
 
-                    />
+                    />
 
-                  \</div>
+                  </div>
 
 
 
-                  \<button
+                  <button
 
-                    type="submit"
+                    type="submit"
 
-                    disabled={msgLoading}
+                    disabled={msgLoading}
 
-                    className="inline-flex items-center justify-center px-8 py-4 bg-[#1c3053] text-white rounded-xl font-medium hover:bg-[#ae884e] disabled:bg-gray-400 transition-all shadow-md"
+                    className="inline-flex items-center justify-center px-8 py-4 bg-[#1c3053] text-white rounded-xl font-medium hover:bg-[#ae884e] disabled:bg-gray-400 transition-all shadow-md"
 
-                  >
+                  >
 
-                    {msgLoading ? (
+                    {msgLoading ? (
 
-                      "Sending..."
+                      "Sending..."
 
-                    ) : (
+                    ) : (
 
-                      <>
+                      <>
 
-                        \<Send className="w-5 h-5 mr-2" />
+                        <Send className="w-5 h-5 mr-2" />
 
-                        Send Message
+                        Send Message
 
-                      \</>
+                      </>
 
-                    )}
+                    )}
 
-                  \</button>
+                  </button>
 
-                \</form>
+                </form>
 
-              )}
+              )}
 
-            \</div>
+            </div>
 
-          \</div>
+          </div>
 
 
 
-          \<div className="w-full lg:w-96 shrink-0">
+          <div className="w-full lg:w-96 shrink-0">
 
-            \<div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sticky top-28 space-y-6">
+            <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sticky top-28 space-y-6">
 
-              \<div className="text-center pb-6 border-b border-gray-100">
+              <div className="text-center pb-6 border-b border-gray-100">
 
-                \<div
+                <div
 
-                  className={\`inline-block text-xs font-semibold px-3 py-1 rounded-full mb-3 ${
+                  className={`inline-block text-xs font-semibold px-3 py-1 rounded-full mb-3 ${
 
-                    property.availability_status === "Available"
+                    property.availability_status === "Available"
 
-                      ? "bg-green-100 text-green-800"
+                      ? "bg-green-100 text-green-800"
 
-                      : "bg-orange-100 text-orange-800"
+                      : "bg-orange-100 text-orange-800"
 
-                  }\`}
+                  }`}
 
-                >
+                >
 
-                  {property.availability_status}
+                  {property.availability_status}
 
-                \</div>
+                </div>
 
 
 
-                \<p className="text-4xl font-bold text-[#1c3053]">
+                <p className="text-4xl font-bold text-[#1c3053]">
 
-                  £{property.monthly_rent?.toLocaleString()}
+                  £{property.monthly_rent?.toLocaleString()}
 
-                  \<span className="text-sm font-normal text-gray-500">
+                  <span className="text-sm font-normal text-gray-500">
 
-                    {" "}
+                    {" "}
 
-                    pcm
+                    pcm
 
-                  \</span>
+                  </span>
 
-                \</p>
+                </p>
 
 
 
-                \<div className="mt-4 text-xs text-gray-400 font-light">
+                <div className="mt-4 text-xs text-gray-400 font-light">
 
-                  Property reference:{" "}
+                  Property reference:{" "}
 
-                  \<span className="font-medium text-gray-600">
+                  <span className="font-medium text-gray-600">
 
-                    {property.property_ref}
+                    {property.property_ref}
 
-                  \</span>
+                  </span>
 
-                \</div>
+                </div>
 
-              \</div>
+              </div>
 
 
 
-              {bookingConfirmed ? (
+              {bookingConfirmed ? (
 
-                \<div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
+                <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
 
-                  \<CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
 
 
 
-                  \<h4 className="font-semibold text-green-900 mb-1">
+                  <h4 className="font-semibold text-green-900 mb-1">
 
-                    Viewing Booked!
+                    Viewing Booked!
 
-                  \</h4>
+                  </h4>
 
 
 
-                  \<p className="text-sm text-green-700 font-light">
+                  <p className="text-sm text-green-700 font-light">
 
-                    Scheduled for {selectedDate} at {selectedTime}. We will
+                    Scheduled for {selectedDate} at {selectedTime}. We will
 
-                    contact you shortly.
+                    contact you shortly.
 
-                  \</p>
+                  </p>
 
-                \</div>
+                </div>
 
-              ) : (
+              ) : (
 
-                \<form onSubmit={handleBookingSubmit} className="space-y-4">
+                <form onSubmit={handleBookingSubmit} className="space-y-4">
 
-                  \<h3 className="font-semibold text-gray-900 text-lg flex items-center">
+                  <h3 className="font-semibold text-gray-900 text-lg flex items-center">
 
-                    \<Calendar className="w-5 h-5 mr-2 text-[#ae884e]" />
+                    <Calendar className="w-5 h-5 mr-2 text-[#ae884e]" />
 
-                    Schedule Viewing
+                    Schedule Viewing
 
-                  \</h3>
+                  </h3>
 
 
 
-                  {bookingError && (
+                  {bookingError && (
 
-                    \<div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl font-medium">
+                    <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl font-medium">
 
-                      {bookingError}
+                      {bookingError}
 
-                    \</div>
+                    </div>
 
-                  )}
+                  )}
 
 
 
-                  \<div>
+                  <div>
 
-                    \<label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
 
-                      Select Day
+                      Select Day
 
-                    \</label>
+                    </label>
 
 
 
-                    \<input
+                    <input
 
-                      type="date"
+                      type="date"
 
-                      min={getLocalDateString()}
+                      min={getLocalDateString()}
 
-                      value={selectedDate}
+                      value={selectedDate}
 
-                      onChange={(e) => setSelectedDate(e.target.value)}
+                      onChange={(e) => setSelectedDate(e.target.value)}
 
-                      className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
+                      className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
 
-                    />
+                    />
 
-                  \</div>
+                  </div>
 
 
 
-                  \<div>
+                  <div>
 
-                    \<label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
 
-                      Select Time
+                      Select Time
 
-                    \</label>
+                    </label>
 
 
 
-                    {availableSlots.length === 0 ? (
+                    {availableSlots.length === 0 ? (
 
-                      \<div className="w-full p-3 rounded-xl border border-red-200 text-sm bg-red-50 text-red-600 font-medium">
+                      <div className="w-full p-3 rounded-xl border border-red-200 text-sm bg-red-50 text-red-600 font-medium">
 
-                        No slots available on this date.
+                        No slots available on this date.
 
-                      \</div>
+                      </div>
 
-                    ) : (
+                    ) : (
 
-                      \<select
+                      <select
 
-                        value={selectedTime}
+                        value={selectedTime}
 
-                        onChange={(e) => setSelectedTime(e.target.value)}
+                        onChange={(e) => setSelectedTime(e.target.value)}
 
-                        className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
 
-                      >
+                      >
 
-                        {availableSlots.map((slot) => (
+                        {availableSlots.map((slot) => (
 
-                          \<option key={slot} value={slot}>
+                          <option key={slot} value={slot}>
 
-                            {slot}
+                            {slot}
 
-                          \</option>
+                          </option>
 
-                        ))}
+                        ))}
 
-                      \</select>
+                      </select>
 
-                    )}
+                    )}
 
-                  \</div>
+                  </div>
 
 
 
-                  \<div>
+                  <div>
 
-                    \<label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
 
-                      Your Full Name \*
+                      Your Full Name *
 
-                    \</label>
+                    </label>
 
 
 
-                    \<input
+                    <input
 
-                      type="text"
+                      type="text"
 
-                      required
+                      required
 
-                      value={userName}
+                      value={userName}
 
-                      onChange={(e) => setUserName(e.target.value)}
+                      onChange={(e) => setUserName(e.target.value)}
 
-                      className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
+                      className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
 
-                      placeholder="John Smith"
+                      placeholder="John Smith"
 
-                    />
+                    />
 
-                  \</div>
+                  </div>
 
 
 
-                  \<div>
+                  <div>
 
-                    \<label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
 
-                      Email Address \*
+                      Email Address *
 
-                    \</label>
+                    </label>
 
 
 
-                    \<input
+                    <input
 
-                      type="email"
+                      type="email"
 
-                      required
+                      required
 
-                      value={userEmail}
+                      value={userEmail}
 
-                      onChange={(e) => setUserEmail(e.target.value)}
+                      onChange={(e) => setUserEmail(e.target.value)}
 
-                      className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
+                      className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
 
-                      placeholder="john\@example.com"
+                      placeholder="john@example.com"
 
-                    />
+                    />
 
-                  \</div>
+                  </div>
 
 
 
-                  \<div>
+                  <div>
 
-                    \<label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
 
-                      Phone Number \*
+                      Phone Number *
 
-                    \</label>
+                    </label>
 
 
 
-                    \<input
+                    <input
 
-                      type="text"
+                      type="text"
 
-                      required
+                      required
 
-                      value={userPhone}
+                      value={userPhone}
 
-                      onChange={(e) => setUserPhone(e.target.value)}
+                      onChange={(e) => setUserPhone(e.target.value)}
 
-                      className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
+                      className="w-full p-3 rounded-xl border border-gray-200 text-sm bg-gray-50 text-gray-900 focus:outline-none focus:border-[#ae884e]"
 
-                      placeholder="+44 7000 000000"
+                      placeholder="+44 7000 000000"
 
-                    />
+                    />
 
-                  \</div>
+                  </div>
 
 
 
-                  \<button
+                  <button
 
-                    type="submit"
+                    type="submit"
 
-                    disabled={
+                    disabled={
 
-                      bookingLoading || availableSlots.length === 0
+                      bookingLoading || availableSlots.length === 0
 
-                    }
+                    }
 
-                    className="w-full py-4 rounded-2xl font-medium text-[15px] bg-[#ae884e] text-white hover:bg-[#1c3053] disabled:bg-gray-300 transition-all shadow-lg"
+                    className="w-full py-4 rounded-2xl font-medium text-[15px] bg-[#ae884e] text-white hover:bg-[#1c3053] disabled:bg-gray-300 transition-all shadow-lg"
 
-                  >
+                  >
 
-                    {bookingLoading ? "Confirming..." : "Confirm Booking"}
+                    {bookingLoading ? "Confirming..." : "Confirm Booking"}
 
-                  \</button>
+                  </button>
 
-                \</form>
+                </form>
 
-              )}
+              )}
 
-            \</div>
+            </div>
 
-          \</div>
+          </div>
 
-        \</div>
+        </div>
 
-      \</div>
+      </div>
 
-    \</div>
+    </div>
 
-  );
+  );
 
 }
