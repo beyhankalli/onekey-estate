@@ -57,15 +57,14 @@ export default function PrivacyPolicyPage() {
                 </p>
                 <p>
                   <strong>Primary contact email:</strong>{" "}
-                  info@onekey.co.uk
+                  info@onekeyagency.co.uk
                 </p>
               </div>
 
               <p className="mt-4">
                 Our intended primary website domain is{" "}
-                <strong>onekey.co.uk</strong>. At the date of this Privacy
-                Policy, that domain has not yet been confirmed as acquired or
-                operational by OneKey.
+                <strong>onekeyagency.co.uk</strong>. The domain is planned for use
+                by OneKey, subject to acquisition and configuration.
               </p>
             </section>
 
@@ -204,7 +203,7 @@ export default function PrivacyPolicyPage() {
                 Information submitted through the contact form is stored in our
                 database and may also be transmitted through the systems used to
                 deliver the enquiry to our intended company contact address,
-                currently info@onekey.co.uk.
+                currently info@onekeyagency.co.uk.
               </p>
 
               <p className="mt-4">
@@ -852,7 +851,7 @@ export default function PrivacyPolicyPage() {
 
               <div className="mt-4 bg-gray-50 rounded-2xl p-5">
                 <p>
-                  <strong>Email:</strong> info@onekey.co.uk
+                  <strong>Email:</strong> info@onekeyagency.co.uk
                 </p>
                 <p className="mt-2">
                   <strong>Data protection contact:</strong>{" "}
@@ -975,10 +974,10 @@ export default function PrivacyPolicyPage() {
                 <p className="mt-2">
                   Email:{" "}
                   <a
-                    href="mailto:info@onekey.co.uk"
+                    href="mailto:info@onekeyagency.co.uk"
                     className="text-[#ae884e] hover:underline"
                   >
-                    info@onekey.co.uk
+                    info@onekeyagency.co.uk
                   </a>
                 </p>
                 <p className="mt-2">
