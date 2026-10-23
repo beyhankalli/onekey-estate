@@ -533,7 +533,6 @@ export default function CustomerProfilePage() {
         },
         body: JSON.stringify({
           customerId: customer.id,
-          authUserId: customer.auth_user_id, // Auth kaydını silebilmek için payload'da gönderiyoruz
         }),
       });
 

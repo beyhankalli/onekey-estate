@@ -123,7 +123,7 @@ export default function AdminAgentsPage() {
         const filePath = `avatars/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from("customer-documents") // Veya projenizdeki genel bir bucket (örn: public-files / avatars)
+          .from("customer-documents")
           .upload(filePath, avatarFile);
 
         if (uploadError) {
@@ -161,48 +161,35 @@ export default function AdminAgentsPage() {
         );
         setSuccess("Agent profile updated successfully.");
       } else {
-        // --- CREATE MODE ---
+        // --- CREATE MODE (Güvenli Sunucu API Rotası Kullanılıyor) ---
         if (!email.trim() || !password.trim()) {
           setError("Email and Password are required to create an agent login account.");
           setSubmitting(false);
           return;
         }
 
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password.trim(),
-          options: {
-            data: {
-              full_name: name.trim(),
-              role: "agent",
-            },
-          },
+        const res = await fetch("/api/admin/agents/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            email: email.trim(),
+            password: password.trim(),
+            phone: phone.trim() || null,
+            whatsapp: whatsapp.trim() || null,
+            bio: bio.trim() || null,
+            avatar_url: finalAvatarUrl,
+          }),
         });
 
-        if (authError) throw authError;
+        const resData = await res.json();
 
-        const authUserId = authData.user?.id || null;
+        if (!res.ok) {
+          throw new Error(resData.error || "Failed to create agent account.");
+        }
 
-        const { data: newAgent, error: insertError } = await supabase
-          .from("agents")
-          .insert([
-            {
-              auth_user_id: authUserId,
-              name: name.trim(),
-              email: email.trim() || null,
-              phone: phone.trim() || null,
-              whatsapp: whatsapp.trim() || null,
-              avatar_url: finalAvatarUrl,
-              bio: bio.trim() || null,
-            },
-          ])
-          .select()
-          .single();
-
-        if (insertError) throw insertError;
-
-        setAgents((prev) => [...prev, newAgent].sort((a, b) => a.name.localeCompare(b.name)));
-        setSuccess("Agent account created successfully with login credentials.");
+        await loadAgents();
+        setSuccess("Agent account and admin permissions created successfully.");
       }
 
       setShowAddModal(false);
@@ -217,20 +204,25 @@ export default function AdminAgentsPage() {
   };
 
   const handleDeleteAgent = async (id: string, agentName: string) => {
-    if (!confirm(`Are you sure you want to delete agent "${agentName}"?`)) {
+    if (!confirm(`Are you sure you want to delete agent "${agentName}"? This will also delete their admin access.`)) {
       return;
     }
 
     try {
-      const { error: deleteError } = await supabase
-        .from("agents")
-        .delete()
-        .eq("id", id);
+      const res = await fetch("/api/admin/agents/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId: id }),
+      });
 
-      if (deleteError) throw deleteError;
+      const resData = await res.json();
+
+      if (!res.ok) {
+        throw new Error(resData.error || "Unable to delete agent.");
+      }
 
       setAgents((prev) => prev.filter((agent) => agent.id !== id));
-      setSuccess("Agent removed successfully.");
+      setSuccess("Agent and associated admin access removed successfully.");
     } catch (err: any) {
       console.error("Failed to delete agent:", err);
       alert(err?.message || "Unable to delete agent.");

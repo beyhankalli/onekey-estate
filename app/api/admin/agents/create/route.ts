@@ -34,32 +34,37 @@ async function isAuthenticatedAdmin() {
   return !error && Boolean(adminUser);
 }
 
-export async function DELETE(request: Request) {
+export async function POST(request: Request) {
   try {
-    // 1. Yetkilendirme Kontrolü (Gerçek admin / agent yetkisi doğrulandı)
+    // 1. Yetkilendirme Kontrolü (İsteği yapan kullanıcının yetkisi doğrulanır)
     if (!(await isAuthenticatedAdmin())) {
       return NextResponse.json({ error: "Unauthorized request" }, { status: 401 });
     }
 
-    // 2. Request body'den müşteri ID ve Auth ID'sini al
-    const { customerId, authUserId } = await request.json();
+    // 2. İstemciden gelen verileri al
+    const body = await request.json();
+    const { email, password, name, fullName, phone, title, bio } = body;
 
-    if (!customerId) {
-      return NextResponse.json({ error: "Customer ID is required" }, { status: 400 });
+    const agentName = name || fullName;
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "Email and password are required" },
+        { status: 400 }
+      );
     }
 
-    // 3. Supabase Service Role Client oluştur (RLS atlamak ve Auth.users yönetimi için)
+    // 3. Supabase Service Role Client oluştur (Oturum açmış admin kullanıcısının oturumunu etkilemeden işlem yapmak için)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return NextResponse.json(
-        { error: "Server configuration error (missing service key). Check your .env file." }, 
+        { error: "Server configuration error (missing service key). Check your .env file." },
         { status: 500 }
       );
     }
 
-    // Admin yetkilerine sahip özel client
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -67,44 +72,83 @@ export async function DELETE(request: Request) {
       },
     });
 
-    // 4. Önce Auth Kullanıcısını Sil (Eğer bağlı bir Auth hesabı varsa)
-    if (authUserId) {
-      const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
-      
-      // Eğer Auth silinirken hata çıkarsa işlemi durdur (Orphan kayıt oluşmasını engellemek için)
-      if (authDeleteError) {
-        console.error("Auth user deletion error:", authDeleteError);
-        return NextResponse.json(
-          { error: "Failed to delete Supabase Auth account: " + authDeleteError.message }, 
-          { status: 500 }
-        );
-      }
-    }
+    // 4. Sunucu tarafında yeni Supabase Auth kullanıcısı oluştur
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        name: agentName,
+        role: "agent",
+      },
+    });
 
-    // 5. Müşteri Tablosundaki Kaydı Sil
-    const { error: customerDeleteError } = await supabaseAdmin
-      .from("customers")
-      .delete()
-      .eq("id", customerId);
-
-    if (customerDeleteError) {
-      console.error("Customer record deletion error:", customerDeleteError);
+    if (authError || !authData.user) {
+      console.error("Auth user creation error:", authError);
       return NextResponse.json(
-        { error: "Failed to delete customer record: " + customerDeleteError.message }, 
+        { error: "Failed to create Auth account: " + (authError?.message || "Unknown error") },
         { status: 500 }
       );
     }
 
-    // 6. Başarılı yanıt dön
-    return NextResponse.json({ 
-      success: true, 
-      message: "Customer record and Auth account permanently deleted." 
+    const newUserId = authData.user.id;
+
+    // 5. 1:1 İlkesi Gereği: "agents" tablosuna ajan kaydını ekle
+    const agentData: Record<string, any> = {
+      user_id: newUserId,
+      email,
+    };
+
+    if (agentName) agentData.name = agentName;
+    if (phone) agentData.phone = phone;
+    if (title) agentData.title = title;
+    if (bio) agentData.bio = bio;
+
+    const { error: agentInsertError } = await supabaseAdmin
+      .from("agents")
+      .insert(agentData);
+
+    if (agentInsertError) {
+      console.error("Agents table insert error:", agentInsertError);
+      // Yetim Auth kaydı oluşmaması için Auth kullanıcısını geri sil
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      return NextResponse.json(
+        { error: "Failed to create agent record: " + agentInsertError.message },
+        { status: 500 }
+      );
+    }
+
+    // 6. 1:1 İlkesi Gereği: "admin_users" tablosuna admin kaydını ekle (Her Ajan bir Admin'dir)
+    const { error: adminInsertError } = await supabaseAdmin
+      .from("admin_users")
+      .insert({ user_id: newUserId });
+
+    if (adminInsertError) {
+      console.error("Admin users table insert error:", adminInsertError);
+      // Yetim kayıt oluşmaması için hem agent kaydını hem auth kullanıcısını geri sil
+      await supabaseAdmin.from("agents").delete().eq("user_id", newUserId);
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      return NextResponse.json(
+        { error: "Failed to create admin record: " + adminInsertError.message },
+        { status: 500 }
+      );
+    }
+
+    // 7. Başarılı yanıt dön
+    return NextResponse.json({
+      success: true,
+      message: "Agent and Admin records successfully created.",
+      user: {
+        id: newUserId,
+        email,
+        name: agentName,
+      },
     });
 
   } catch (error: any) {
-    console.error("API error during customer deletion:", error);
+    console.error("API error during agent creation:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error" }, 
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
   }

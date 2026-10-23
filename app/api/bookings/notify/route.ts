@@ -1,4 +1,6 @@
+
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import {
   emailShell,
@@ -7,7 +9,6 @@ import {
   sendTransactionalEmail,
 } from "@/lib/transactional-email";
 
-// Service role client: Used here specifically to read booking data securely.
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -22,6 +23,30 @@ function getAdminClient() {
       persistSession: false,
     },
   });
+}
+
+function isAuthorized(request: Request): boolean {
+  const secret = process.env.BOOKING_NOTIFICATION_SECRET;
+  const authorization = request.headers.get("authorization");
+
+  if (!secret || !authorization?.startsWith("Bearer ")) {
+    return false;
+  }
+
+  const suppliedSecret = authorization.slice("Bearer ".length);
+
+  if (!suppliedSecret || suppliedSecret.length !== secret.length) {
+    return false;
+  }
+
+  return timingSafeEqual(
+    Buffer.from(suppliedSecret, "utf8"),
+    Buffer.from(secret, "utf8")
+  );
+}
+
+function errorResponse(error: string, status: number) {
+  return NextResponse.json({ success: false, error }, { status });
 }
 
 type BookingProperty = {
@@ -52,17 +77,27 @@ type Booking = {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { bookingId } = body;
+    if (!isAuthorized(request)) {
+      return errorResponse("Unauthorized.", 401);
+    }
 
-    if (!bookingId || typeof bookingId !== "string") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Booking ID is required.",
-        },
-        { status: 400 }
-      );
+    let body: Record<string, unknown>;
+
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse("Invalid request body.", 400);
+    }
+
+    const bookingId = body.bookingId;
+
+    if (
+      typeof bookingId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        bookingId
+      )
+    ) {
+      return errorResponse("A valid booking ID is required.", 400);
     }
 
     const supabase = getAdminClient();
@@ -95,32 +130,21 @@ export async function POST(request: Request) {
 
     if (error || !data) {
       console.error("Booking lookup error:", error);
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Booking not found.",
-        },
-        { status: 404 }
-      );
+      return errorResponse("Booking not found.", 404);
     }
 
     const booking = data as unknown as Booking;
 
-    // Güvenlik Ekstra: Randevunun çok eski (örneğin 10 dakikadan önce oluşturulmuş) olmamasını denetle.
-    // Bu sayede eski booking ID'leri ile tekrar tekrar bildirim tetiklenmesi önlenir.
     const createdAtTime = new Date(booking.created_at).getTime();
-    const nowTime = Date.now();
-    const tenMinutesInMs = 10 * 60 * 1000;
+    const age = Date.now() - createdAtTime;
 
-    if (isNaN(createdAtTime) || nowTime - createdAtTime > tenMinutesInMs) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized or expired notification request.",
-        },
-        { status: 403 }
-      );
+    // Keep a short time window as an additional safeguard.
+    if (
+      !Number.isFinite(createdAtTime) ||
+      age < 0 ||
+      age > 10 * 60 * 1000
+    ) {
+      return errorResponse("Notification request expired.", 403);
     }
 
     const property = Array.isArray(booking.property)
@@ -142,7 +166,6 @@ export async function POST(request: Request) {
 
     const results: string[] = [];
 
-    // Send confirmation to customer
     if (booking.customer_email) {
       await sendTransactionalEmail({
         to: booking.customer_email,
@@ -173,7 +196,6 @@ export async function POST(request: Request) {
       results.push("customer");
     }
 
-    // Notify assigned agent
     if (agent?.email) {
       await sendTransactionalEmail({
         to: agent.email,
@@ -197,12 +219,8 @@ export async function POST(request: Request) {
             Time: ${escapeHtml(time)}<br /><br />
 
             Customer: ${escapeHtml(booking.customer_name)}<br />
-            Email: ${escapeHtml(
-              booking.customer_email || "Not provided"
-            )}<br />
-            Phone: ${escapeHtml(
-              booking.customer_phone || "Not provided"
-            )}
+            Email: ${escapeHtml(booking.customer_email || "Not provided")}<br />
+            Phone: ${escapeHtml(booking.customer_phone || "Not provided")}
           </div>
         `),
       });
@@ -210,7 +228,6 @@ export async function POST(request: Request) {
       results.push("agent");
     }
 
-    // Notify main admin address
     const adminEmail = process.env.EMAIL_TO;
 
     if (adminEmail) {
@@ -235,12 +252,8 @@ export async function POST(request: Request) {
             Time: ${escapeHtml(time)}<br /><br />
 
             Customer: ${escapeHtml(booking.customer_name)}<br />
-            Email: ${escapeHtml(
-              booking.customer_email || "Not provided"
-            )}<br />
-            Phone: ${escapeHtml(
-              booking.customer_phone || "Not provided"
-            )}<br />
+            Email: ${escapeHtml(booking.customer_email || "Not provided")}<br />
+            Phone: ${escapeHtml(booking.customer_phone || "Not provided")}<br />
             Agent: ${escapeHtml(agent?.name || "Unassigned")}
           </div>
         `),
@@ -256,12 +269,6 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Booking notification error:", error);
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Unable to send booking notifications.",
-      },
-      { status: 500 }
-    );
+    return errorResponse("Unable to send booking notifications.", 500);
   }
 }
