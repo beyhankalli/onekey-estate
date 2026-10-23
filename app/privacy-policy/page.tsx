@@ -855,7 +855,7 @@ export default function PrivacyPolicyPage() {
                 </p>
                 <p className="mt-2">
                   <strong>Data protection contact:</strong>{" "}
-                  [REQUIRES CONFIRMATION]
+                  +44 7466 836532
                 </p>
               </div>
 
@@ -981,7 +981,7 @@ export default function PrivacyPolicyPage() {
                   </a>
                 </p>
                 <p className="mt-2">
-                  Telephone: [TELEPHONE NUMBER TO BE CONFIRMED]
+                  Telephone: +44 7466 836532
                 </p>
               </div>
 

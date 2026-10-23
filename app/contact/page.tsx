@@ -181,12 +181,12 @@ export default function ContactPage() {
 
             <div className="flex items-center space-x-4">
               <Phone className="w-6 h-6 text-[#ae884e] shrink-0" />
-              <p className="text-gray-600 font-light">+44000...</p>
+              <p className="text-gray-600 font-light">+44 7466 836532</p>
             </div>
 
             <div className="flex items-center space-x-4">
               <Mail className="w-6 h-6 text-[#ae884e] shrink-0" />
-              <p className="text-gray-600 font-light">info@onekey.co.uk</p>
+              <p className="text-gray-600 font-light">info@onekeyagency.co.uk</p>
             </div>
           </div>
 

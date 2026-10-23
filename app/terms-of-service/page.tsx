@@ -16,7 +16,7 @@ export default function TermsOfServicePage() {
             </h1>
 
             <p className="text-gray-500 font-light">
-              Last updated: 7 September 2026
+              Last updated: 23 October 2026
             </p>
           </div>
 
@@ -69,16 +69,16 @@ export default function TermsOfServicePage() {
                   Centre, 13 Mogul Lane, Halesowen, United Kingdom, B63 2QQ
                 </p>
                 <p>
-                  <strong>Email:</strong> info@onekey.co.uk
+                  <strong>Email:</strong> info@onekeyagency.co.uk
                 </p>
                 <p>
-                  <strong>Telephone:</strong> [TELEPHONE NUMBER TO BE CONFIRMED]
+                  <strong>Telephone:</strong> +44 7466 836532
                 </p>
               </div>
 
               <p className="mt-4">
                 Our intended primary website domain is{" "}
-                <strong>onekey.co.uk</strong>. That domain is intended to be
+                <strong>onekeyagency.co.uk</strong>. That domain is intended to be
                 used once acquired and configured by OneKey.
               </p>
             </section>
@@ -815,14 +815,14 @@ export default function TermsOfServicePage() {
                 <p>
                   Email:{" "}
                   <a
-                    href="mailto:info@onekey.co.uk"
+                    href="mailto:info@onekeyagency.co.uk"
                     className="text-[#ae884e] hover:underline"
                   >
-                    info@onekey.co.uk
+                    info@onekeyagency.co.uk
                   </a>
                 </p>
                 <p>
-                  Telephone: [TELEPHONE NUMBER TO BE CONFIRMED]
+                  Telephone: +44 7466 836532
                 </p>
               </div>
 
