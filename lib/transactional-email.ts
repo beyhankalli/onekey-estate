@@ -6,7 +6,7 @@ function requiredEnv(name: string) {
   return value;
 }
 
-export const getAdminEmail = () => process.env.ADMIN_EMAIL || "info@onekey.co.uk";
+export const getAdminEmail = () => process.env.ADMIN_EMAIL || "info@onekeyagency.co.uk";
 
 export function escapeHtml(value: unknown) {
   return String(value ?? "")
@@ -57,7 +57,7 @@ export async function sendTransactionalEmail({
   idempotencyKey?: string;
 }) {
   const apiKey = requiredEnv("RESEND_API_KEY");
-  const from = process.env.EMAIL_FROM || "notifications@onekey.co.uk";
+  const from = process.env.EMAIL_FROM || "notifications@onekeyagency.co.uk";
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
