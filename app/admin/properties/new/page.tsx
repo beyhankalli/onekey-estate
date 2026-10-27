@@ -23,6 +23,28 @@ interface MediaItem {
   type: "interior" | "exterior";
 }
 
+function CheckboxField({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-3 cursor-pointer min-h-10">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="w-5 h-5 accent-[#ae884e] rounded shrink-0"
+      />
+      <span className="text-sm font-medium text-gray-900">{label}</span>
+    </label>
+  );
+}
+
 export default function NewPropertyPage() {
   const router = useRouter();
 
@@ -431,33 +453,6 @@ export default function NewPropertyPage() {
     }
   };
 
-  const CheckboxField = ({
-    label,
-    keyName,
-  }: {
-    label: string;
-    keyName: keyof typeof formData;
-  }) => (
-    <label className="flex items-center gap-3 cursor-pointer min-h-10">
-      <input
-        type="checkbox"
-        checked={
-          formData[keyName] as boolean
-        }
-        onChange={(e) =>
-          setFormData({
-            ...formData,
-            [keyName]: e.target.checked,
-          })
-        }
-        className="w-5 h-5 accent-[#ae884e] rounded shrink-0"
-      />
-
-      <span className="text-sm font-medium text-gray-900">
-        {label}
-      </span>
-    </label>
-  );
 
   const inputClass =
     "w-full p-3 rounded-xl border border-gray-300 text-gray-900 font-medium bg-white outline-none focus:border-[#ae884e] focus:ring-1 focus:ring-[#ae884e]/20 placeholder:text-gray-400 transition";
@@ -917,17 +912,35 @@ export default function NewPropertyPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
             <CheckboxField
               label="Bills Included"
-              keyName="bills_included"
+              checked={formData.bills_included}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  bills_included: checked,
+                }))
+              }
             />
 
             <CheckboxField
               label="DSS/LHA Covers Rent"
-              keyName="dss_lha_covers_rent"
+              checked={formData.dss_lha_covers_rent}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  dss_lha_covers_rent: checked,
+                }))
+              }
             />
 
             <CheckboxField
               label="Online Viewings"
-              keyName="online_viewings"
+              checked={formData.online_viewings}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  online_viewings: checked,
+                }))
+              }
             />
           </div>
         </div>
@@ -1062,37 +1075,79 @@ export default function NewPropertyPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 pt-2">
             <CheckboxField
               label="Student Friendly"
-              keyName="student_friendly"
+              checked={formData.student_friendly}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  student_friendly: checked,
+                }))
+              }
             />
 
             <CheckboxField
               label="Families Allowed"
-              keyName="families_allowed"
+              checked={formData.families_allowed}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  families_allowed: checked,
+                }))
+              }
             />
 
             <CheckboxField
               label="Pets Allowed"
-              keyName="pets_allowed"
+              checked={formData.pets_allowed}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  pets_allowed: checked,
+                }))
+              }
             />
 
             <CheckboxField
               label="Smokers Allowed"
-              keyName="smokers_allowed"
+              checked={formData.smokers_allowed}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  smokers_allowed: checked,
+                }))
+              }
             />
 
             <CheckboxField
               label="Garden"
-              keyName="garden"
+              checked={formData.garden}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  garden: checked,
+                }))
+              }
             />
 
             <CheckboxField
               label="Parking"
-              keyName="parking"
+              checked={formData.parking}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  parking: checked,
+                }))
+              }
             />
 
             <CheckboxField
               label="Fireplace"
-              keyName="fireplace"
+              checked={formData.fireplace}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  fireplace: checked,
+                }))
+              }
             />
           </div>
 
@@ -1117,9 +1172,15 @@ export default function NewPropertyPage() {
           </div>
 
           <CheckboxField
-            label="Mark as Featured Property (Show on Homepage)"
-            keyName="is_featured"
-          />
+              label="Mark as Featured Property (Show on Homepage)"
+              checked={formData.is_featured}
+              onChange={(checked) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  is_featured: checked,
+                }))
+              }
+            />
         </div>
 
         {/* MEDIA */}
