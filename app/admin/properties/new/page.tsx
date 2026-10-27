@@ -38,7 +38,7 @@ function CheckboxField({
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="w-5 h-5 accent-[#ae884e] rounded"
+        className="w-5 h-5 accent-[#ae884e] rounded shrink-0"
       />
       <span className="text-sm font-medium text-gray-900">{label}</span>
     </label>
