@@ -168,7 +168,32 @@ interface Property {
 
 
 
-// UK Yerel Tarih Helper'ı (UTC kaymasını önlemek için)
+function FeatureRow({
+  label,
+  value,
+  type = "bool",
+}: {
+  label: string;
+  value: string | number | boolean | null | undefined;
+  type?: "bool" | "text";
+}) {
+  return (
+    <div className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+      <span className="text-gray-500 text-sm">{label}</span>
+      {type === "bool" ? (
+        value ? (
+          <Check className="w-5 h-5 text-green-600" />
+        ) : (
+          <X className="w-5 h-5 text-red-500" />
+        )
+      ) : (
+        <span className="text-gray-900 text-sm font-medium">
+          {value || "-"}
+        </span>
+      )}
+    </div>
+  );
+}
 
 const getLocalDateString = () => {
 
@@ -977,55 +1002,6 @@ export default function PropertyDetailsPage() {
 
 
 
-  const FeatureRow = ({
-
-    label,
-
-    value,
-
-    type = "bool",
-
-  }: {
-
-    label: string;
-
-    value: any;
-
-    type?: "bool" | "text";
-
-  }) => (
-
-    <div className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-
-      <span className="text-gray-500 text-sm">{label}</span>
-
-
-
-      {type === "bool" ? (
-
-        value ? (
-
-          <Check className="w-5 h-5 text-green-600" />
-
-        ) : (
-
-          <X className="w-5 h-5 text-red-500" />
-
-        )
-
-      ) : (
-
-        <span className="text-gray-900 text-sm font-medium">
-
-          {value || "-"}
-
-        </span>
-
-      )}
-
-    </div>
-
-  );
 
 
 
